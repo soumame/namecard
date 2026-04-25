@@ -5577,6 +5577,16 @@
 				)
 			)
 		)
+		(property "LCSC" "C45783"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "78de65e3-c05e-4ff3-81df-75cbda1ad9d5")
 		)
@@ -5647,6 +5657,17 @@
 			)
 		)
 		(property "Description" "Schottky diode"
+			(at 35.56 66.04 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C22374920"
 			(at 35.56 66.04 0)
 			(hide yes)
 			(show_name no)
@@ -5728,6 +5749,17 @@
 			)
 		)
 		(property "Description" "Inductor"
+			(at 127 74.93 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C66936"
 			(at 127 74.93 0)
 			(hide yes)
 			(show_name no)
@@ -5889,6 +5921,16 @@
 		(property "Description" "Unpolarized capacitor"
 			(at 116.84 53.34 0)
 			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C45783"
+			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -6124,6 +6166,17 @@
 			)
 		)
 		(property "Description" "Dynamic NFC/RFID tag IC with 4-Kbit EEPROM, UFDFPN-8"
+			(at 104.14 124.46 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C2908287"
 			(at 104.14 124.46 0)
 			(hide yes)
 			(show_name no)
@@ -6493,6 +6546,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C529331"
+			(at 44.45 115.57 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "20"
 			(uuid "de0229ed-6c7a-4e83-8e76-b06fdaecf6dd")
 		)
@@ -6664,6 +6728,16 @@
 				)
 			)
 		)
+		(property "LCSC" "C45783"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "ec723626-3048-4279-b509-b6e3e90e7a34")
 		)
@@ -6815,6 +6889,16 @@
 		(property "Description" "Unpolarized capacitor"
 			(at 101.6 53.34 0)
 			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C45783"
+			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7541,6 +7625,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C45783"
+			(at 81.28 53.34 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "0a7f6e76-ed4d-4b26-b9ff-7ecd8c9c7f67")
 		)
@@ -7773,6 +7868,16 @@
 		(property "Description" "Unpolarized capacitor"
 			(at 86.36 53.34 0)
 			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C45783"
+			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8028,6 +8133,16 @@
 				)
 			)
 		)
+		(property "LCSC" "C45783"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "2798ec75-caa2-4d11-8223-21ba7c287e1f")
 		)
@@ -8183,6 +8298,16 @@
 		(property "Description" "Unpolarized capacitor"
 			(at 96.52 53.34 0)
 			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C45783"
+			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -9126,7 +9251,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "FH34SRJ-24S-0.5SH(50)"
+		(property "Footprint" "Connector:FFC-SMD_24P-P0.50_FH34SRJ-24S-0.5SH"
 			(at 210.82 102.87 0)
 			(hide yes)
 			(show_name no)
@@ -9149,6 +9274,17 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x24, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 210.82 102.87 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C324726"
 			(at 210.82 102.87 0)
 			(hide yes)
 			(show_name no)
@@ -9298,6 +9434,16 @@
 		(property "Description" "Unpolarized capacitor"
 			(at 121.92 53.34 0)
 			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C45783"
+			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -9457,6 +9603,16 @@
 		(property "Description" "Unpolarized capacitor"
 			(at 91.44 53.34 0)
 			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C45783"
+			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
