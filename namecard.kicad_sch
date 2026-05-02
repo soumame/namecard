@@ -8333,7 +8333,7 @@
 	)
 	(symbol
 		(lib_id "Device:LED")
-		(at 82.55 104.14 270)
+		(at 82.55 104.14 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -8344,25 +8344,25 @@
 		(fields_autoplaced yes)
 		(uuid "a173e3d9-8e85-4d56-b531-6976d54f4bf4")
 		(property "Reference" "D5"
-			(at 85.09 101.2824 90)
+			(at 86.36 104.4574 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(property "Value" "LED"
-			(at 85.09 103.8224 90)
+			(at 86.36 106.9974 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(property "Footprint" "LED_SMD:LED_0603_1608Metric"
