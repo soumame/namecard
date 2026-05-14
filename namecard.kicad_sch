@@ -5170,16 +5170,6 @@
 	)
 	(wire
 		(pts
-			(xy 148.59 149.86) (xy 148.59 157.48)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "d94380da-1b3e-49da-b6c9-1ff8b14a1527")
-	)
-	(wire
-		(pts
 			(xy 43.18 149.86) (xy 48.26 149.86)
 		)
 		(stroke
@@ -5568,7 +5558,7 @@
 		)
 		(uuid "431360b6-3221-426f-bc1f-6588f80447bc")
 	)
-	(label "EXT_3V3"
+	(label "SYS_VDD"
 		(at 71.12 137.16 0)
 		(effects
 			(font
@@ -5828,16 +5818,6 @@
 		)
 		(uuid "ce86154c-7418-47da-988b-3195e60e6c3e")
 	)
-	(label "EXT_3V3"
-		(at 148.59 149.86 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "d7744fb5-3c4b-436d-8aab-40e7e51d7caf")
-	)
 	(label "SPI_MOSI"
 		(at 234.95 100.33 0)
 		(effects
@@ -5907,16 +5887,6 @@
 			(justify left bottom)
 		)
 		(uuid "edd5f43c-c806-4c1c-ae86-781952e8b1a5")
-	)
-	(label "SYS_VDD"
-		(at 148.59 157.48 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "f580baec-d49a-47ee-90ed-addd998e807e")
 	)
 	(label "SWCLK"
 		(at 63.5 146.05 0)
