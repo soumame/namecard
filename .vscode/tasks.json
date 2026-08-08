@@ -1,0 +1,176 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "FW: Configure external-power-self-test",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--preset", "external-power-self-test"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Build external-power-self-test",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--build", "--preset", "external-power-self-test"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "dependsOn": "FW: Configure external-power-self-test",
+      "dependsOrder": "sequence",
+      "problemMatcher": ["$gcc"],
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "FW: Configure nfc-fixed-test",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--preset", "nfc-fixed-test"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Configure prepare-white",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--preset", "prepare-white"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Build prepare-white",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--build", "--preset", "prepare-white"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "dependsOn": "FW: Configure prepare-white",
+      "dependsOrder": "sequence",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "FW: Build nfc-fixed-test",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--build", "--preset", "nfc-fixed-test"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "dependsOn": "FW: Configure nfc-fixed-test",
+      "dependsOrder": "sequence",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "FW: Configure nfc-fixed-one-shot",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--preset", "nfc-fixed-one-shot"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Build nfc-fixed-one-shot",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--build", "--preset", "nfc-fixed-one-shot"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "dependsOn": "FW: Configure nfc-fixed-one-shot",
+      "dependsOrder": "sequence",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "FW: Configure release",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--preset", "release"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Build release",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--build", "--preset", "release"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "dependsOn": "FW: Configure release",
+      "dependsOrder": "sequence",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "FW: Flash external-power-self-test",
+      "detail": "C19とFPCのハードウェアゲート確認後、外部3.3Vで使用する",
+      "type": "process",
+      "command": "arch",
+      "args": [
+        "-x86_64",
+        "/Applications/STMicroelectronics/STM32Cube/STM32CubeProgrammer/STM32CubeProgrammer.app/Contents/Resources/bin/STM32_Programmer_CLI",
+        "-c", "port=SWD", "freq=1000", "mode=UR", "reset=HWrst",
+        "-w", "${workspaceFolder}/firmware/build/self-test/namecard_fw.hex",
+        "-v", "-rst"
+      ],
+      "dependsOn": "FW: Build external-power-self-test",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Flash nfc-fixed-test",
+      "detail": "現行基板向け低電圧・8行分割版。書き込み後はST-Linkと外部電源を完全に外す",
+      "type": "process",
+      "command": "arch",
+      "args": [
+        "-x86_64",
+        "/Applications/STMicroelectronics/STM32Cube/STM32CubeProgrammer/STM32CubeProgrammer.app/Contents/Resources/bin/STM32_Programmer_CLI",
+        "-c", "port=SWD", "freq=1000", "mode=UR", "reset=HWrst",
+        "-w", "${workspaceFolder}/firmware/build/nfc-fixed-test/namecard_fw.hex",
+        "-v", "-halt"
+      ],
+      "dependsOn": "FW: Build nfc-fixed-test",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Flash nfc-fixed-one-shot",
+      "detail": "最終Go/No-Go判定用。低電圧・全画面Partial 1回。外付け4x330uFを接続し、書き込み後はST-Linkと外部電源を完全に外す",
+      "type": "process",
+      "command": "arch",
+      "args": [
+        "-x86_64",
+        "/Applications/STMicroelectronics/STM32Cube/STM32CubeProgrammer/STM32CubeProgrammer.app/Contents/Resources/bin/STM32_Programmer_CLI",
+        "-c", "port=SWD", "freq=1000", "mode=UR", "reset=HWrst",
+        "-w", "${workspaceFolder}/firmware/build/nfc-fixed-one-shot/namecard_fw.hex",
+        "-v", "-halt"
+      ],
+      "dependsOn": "FW: Build nfc-fixed-one-shot",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Flash prepare-white",
+      "detail": "NFC固定画像試験の前に、外部3.3Vで画面を全面白へ揃える",
+      "type": "process",
+      "command": "arch",
+      "args": [
+        "-x86_64",
+        "/Applications/STMicroelectronics/STM32Cube/STM32CubeProgrammer/STM32CubeProgrammer.app/Contents/Resources/bin/STM32_Programmer_CLI",
+        "-c", "port=SWD", "freq=1000", "mode=UR", "reset=HWrst",
+        "-w", "${workspaceFolder}/firmware/build/prepare-white/namecard_fw.hex",
+        "-v", "-rst"
+      ],
+      "dependsOn": "FW: Build prepare-white",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Flash release",
+      "detail": "NFC固定画像試験合格後のMailbox転送版",
+      "type": "process",
+      "command": "arch",
+      "args": [
+        "-x86_64",
+        "/Applications/STMicroelectronics/STM32Cube/STM32CubeProgrammer/STM32CubeProgrammer.app/Contents/Resources/bin/STM32_Programmer_CLI",
+        "-c", "port=SWD", "freq=1000", "mode=UR", "reset=HWrst",
+        "-w", "${workspaceFolder}/firmware/build/release/namecard_fw.hex",
+        "-v", "-rst"
+      ],
+      "dependsOn": "FW: Build release",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    }
+  ]
+}

@@ -6800,7 +6800,7 @@
 				)
 			)
 		)
-		(property "Value" "ST25DV04K-IER8C3"
+		(property "Value" "ST25DV64K-IER8S3"
 			(at 136.525 139.7 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6821,7 +6821,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://www.st.com/resource/en/datasheet/st25dv04k.pdf"
+		(property "Datasheet" "https://www.st.com/resource/en/datasheet/st25dv64k.pdf"
 			(at 125.73 133.35 0)
 			(hide yes)
 			(show_name no)
@@ -6832,7 +6832,7 @@
 				)
 			)
 		)
-		(property "Description" "Dynamic NFC/RFID tag IC with 4-Kbit EEPROM, UFDFPN-8"
+		(property "Description" ""
 			(at 125.73 133.35 0)
 			(hide yes)
 			(show_name no)
@@ -6843,7 +6843,7 @@
 				)
 			)
 		)
-		(property "JLCPCB" "C2908287"
+		(property "JLCPCB" "C1852798"
 			(at 125.73 133.35 0)
 			(hide yes)
 			(show_name no)

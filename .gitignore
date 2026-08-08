@@ -33,6 +33,10 @@ fp-info-cache
 *.xml
 *.csv
 
+# Android source XML
+!firmware/tools/android-client/app/src/main/AndroidManifest.xml
+!firmware/tools/android-client/app/src/main/res/**/*.xml
+
 # Archived Backups (KiCad 6.0)
 **/*-backups/*.zip
 
@@ -43,3 +47,14 @@ fp-info-cache
 *.kicad_prl
 
 .DS_Store
+
+# Firmware build products
+firmware/build/
+firmware/build-*/
+firmware/tests/build/
+firmware/tools/android-client/.gradle/
+firmware/tools/android-client/app/build/
+firmware/tools/android-client/build/
+firmware/tools/android-client/local.properties
+firmware/.cache/
+firmware/compile_commands.json
