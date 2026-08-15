@@ -1,0 +1,59 @@
+* Averaged SPICE model of the harvested-power path.
+* Open this file directly in ngspice, or run simulation/run_ngspice.py.
+
+.param IHARV=2.5m
+.param VEH_LOAD=2.50
+.param VEH_RSRC=240
+.param ICL=2.5m
+.param ETA=0.85
+.param VSET=3.30
+.param CRAW=231.2u
+.param CRES=1.2104m
+.param TUPDATE=2.00
+.param TINIT=50m
+.param TPARTIAL=300m
+.param IINIT=2.0m
+.param ISLEEP=0.12m
+.param IEPD=2.73m
+
+* Pixel 9 Pro/ST25DV input. VEH_LOAD is the observed operating voltage at
+* IHARV; 240 ohm is an assumed local slope because voltage alone does not
+* determine the phone/antenna source impedance.
+Vharvest_open harvest_open 0 {VEH_LOAD+IHARV*VEH_RSRC}
+Rharvest_source harvest_open veh {VEH_RSRC}
+Ceh veh 0 1.1u
+Rveh_leak veh 0 1G
+
+* LM66100 averaged as a reverse-blocking low-resistance ideal diode.
+Dlm veh vraw D_LM66100
+.model D_LM66100 D(Is=1m N=0.01 Rs=0.14)
+Craw vraw 0 {CRAW}
+Rvraw_leak vraw 0 1G
+
+* Averaged TPS63900. Output power is bounded by ICL * VRAW * efficiency.
+* The second term gives the regulator a finite 20 ms averaged control response.
+.func ENABLE(vin) {min(1,max(0,(vin-1.65)/0.10))}
+.func IOUT(vin,vout) {ENABLE(vin)*min(ICL*ETA*max(vin,0)/max(vout,0.5),max(0,(VSET-vout)*CRES/20m))}
+Bconverter 0 vres I={IOUT(V(vraw),V(vres))}
+Bconverter_input vraw 0 I={IOUT(V(vraw),V(vres))*max(V(vres),0.5)/(ETA*max(V(vraw),0.1))}
+
+* Combined VRES bank. 10 mOhm is a conservative parallel-bank/path estimate.
+Rvres_esr vres vres_cap 10m
+Cvres vres_cap 0 {CRES}
+Rvres_leak vres 0 1G
+Iload vres 0 PWL(0 0 {TUPDATE-0.1m} 0 {TUPDATE} {IINIT} {TUPDATE+TINIT} {IINIT} {TUPDATE+TINIT+0.1m} {IEPD+ISLEEP} {TUPDATE+TINIT+TPARTIAL} {IEPD+ISLEEP} {TUPDATE+TINIT+TPARTIAL+0.1m} {ISLEEP} 4.2000 {ISLEEP})
+
+.options reltol=1e-5 abstol=1e-10 numdgt=6
+.tran 100u 4.20 uic
+
+.control
+run
+meas tran t_vres_320 when v(vres)=3.20 rise=1
+meas tran t_vres_329 when v(vres)=3.29 rise=1
+meas tran vres_at_update find v(vres) at=2.00
+meas tran vres_min min v(vres) from=2.00 to=2.36
+meas tran vraw_min min v(vraw) from=2.00 to=2.36
+meas tran veh_min min v(veh) from=2.00 to=2.36
+.endc
+
+.end

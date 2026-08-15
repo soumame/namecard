@@ -49,7 +49,7 @@ static void SystemClock_Config(void)
     }
 
     clocks.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1;
-    clocks.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+    clocks.xSource = RCC_SYSCLKSOURCE_HSI;
     clocks.AHBCLKDivider = RCC_SYSCLK_DIV2;
     clocks.APB1CLKDivider = RCC_HCLK_DIV1;
     if (HAL_RCC_ClockConfig(&clocks, FLASH_LATENCY_0) != HAL_OK) {
