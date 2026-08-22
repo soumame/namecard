@@ -28,7 +28,8 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef *hi2c)
     }
     __HAL_RCC_GPIOB_CLK_ENABLE();
     GPIO_InitTypeDef gpio = {0};
-    gpio.Pin = GPIO_PIN_6 | GPIO_PIN_7;
+    /* v4 PCB: PB8=SCL, PB7=SDA. */
+    gpio.Pin = GPIO_PIN_8 | GPIO_PIN_7;
     gpio.Mode = GPIO_MODE_AF_OD;
     gpio.Pull = GPIO_NOPULL;
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
@@ -41,7 +42,7 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef *hi2c)
 {
     if (hi2c->Instance == I2C1) {
         __HAL_RCC_I2C1_CLK_DISABLE();
-        HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6 | GPIO_PIN_7);
+        HAL_GPIO_DeInit(GPIOB, GPIO_PIN_8 | GPIO_PIN_7);
     }
 }
 

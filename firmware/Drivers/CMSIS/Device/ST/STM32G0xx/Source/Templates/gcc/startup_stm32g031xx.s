@@ -1,8 +1,8 @@
 /**
   ******************************************************************************
-  * @file      startup_stm32g030xx.s
+  * @file      startup_stm32g031xx.s
   * @author    MCD Application Team
-  * @brief     STM32G030xx devices vector table GCC toolchain.
+  * @brief     STM32G031xx devices vector table GCC toolchain.
   *            This module performs:
   *                - Set the initial SP
   *                - Set the initial PC == Reset_Handler,
@@ -146,7 +146,7 @@ g_pfnVectors:
   .word PendSV_Handler
   .word SysTick_Handler
   .word WWDG_IRQHandler                   /* Window WatchDog              */
-  .word 0                                 /* reserved                     */
+  .word PVD_IRQHandler                    /* PVD through EXTI Line detect */
   .word RTC_TAMP_IRQHandler               /* RTC through the EXTI line    */
   .word FLASH_IRQHandler                  /* FLASH                        */
   .word RCC_IRQHandler                    /* RCC                          */
@@ -157,13 +157,13 @@ g_pfnVectors:
   .word DMA1_Channel1_IRQHandler          /* DMA1 Channel 1               */
   .word DMA1_Channel2_3_IRQHandler        /* DMA1 Channel 2 and Channel 3 */
   .word DMA1_Ch4_5_DMAMUX1_OVR_IRQHandler /* DMA1 Channel 4 to Channel 5, DMAMUX1 overrun */
-  .word ADC1_IRQHandler                   /* ADC1                         */
+  .word ADC1_IRQHandler                   /* ADC1                        */
   .word TIM1_BRK_UP_TRG_COM_IRQHandler    /* TIM1 Break, Update, Trigger and Commutation */
   .word TIM1_CC_IRQHandler                /* TIM1 Capture Compare         */
-  .word 0                                 /* reserved                     */
+  .word TIM2_IRQHandler                   /* TIM2                         */
   .word TIM3_IRQHandler                   /* TIM3                         */
-  .word 0                                 /* reserved                     */
-  .word 0                                 /* reserved                     */
+  .word LPTIM1_IRQHandler                 /* LPTIM1                       */
+  .word LPTIM2_IRQHandler                 /* LPTIM2                       */
   .word TIM14_IRQHandler                  /* TIM14                        */
   .word 0                                 /* reserved                     */
   .word TIM16_IRQHandler                  /* TIM16                        */
@@ -174,6 +174,7 @@ g_pfnVectors:
   .word SPI2_IRQHandler                   /* SPI2                         */
   .word USART1_IRQHandler                 /* USART1                       */
   .word USART2_IRQHandler                 /* USART2                       */
+  .word LPUART1_IRQHandler                /* LPUART1                      */
   .word 0                                 /* reserved                     */
 
   .size g_pfnVectors, .-g_pfnVectors
@@ -203,6 +204,9 @@ g_pfnVectors:
 
   .weak      WWDG_IRQHandler
   .thumb_set WWDG_IRQHandler,Default_Handler
+
+  .weak      PVD_IRQHandler
+  .thumb_set PVD_IRQHandler,Default_Handler
 
   .weak      RTC_TAMP_IRQHandler
   .thumb_set RTC_TAMP_IRQHandler,Default_Handler
@@ -240,8 +244,17 @@ g_pfnVectors:
   .weak      TIM1_CC_IRQHandler
   .thumb_set TIM1_CC_IRQHandler,Default_Handler
 
+  .weak      TIM2_IRQHandler
+  .thumb_set TIM2_IRQHandler,Default_Handler
+
   .weak      TIM3_IRQHandler
   .thumb_set TIM3_IRQHandler,Default_Handler
+
+  .weak      LPTIM1_IRQHandler
+  .thumb_set LPTIM1_IRQHandler,Default_Handler
+
+  .weak      LPTIM2_IRQHandler
+  .thumb_set LPTIM2_IRQHandler,Default_Handler
 
   .weak      TIM14_IRQHandler
   .thumb_set TIM14_IRQHandler,Default_Handler
@@ -269,3 +282,6 @@ g_pfnVectors:
 
   .weak      USART2_IRQHandler
   .thumb_set USART2_IRQHandler,Default_Handler
+
+  .weak      LPUART1_IRQHandler
+  .thumb_set LPUART1_IRQHandler,Default_Handler

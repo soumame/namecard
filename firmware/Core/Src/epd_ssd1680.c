@@ -10,12 +10,18 @@ static SPI_HandleTypeDef *epd_spi;
 
 static epd_result_t send_bytes(bool data_mode, const uint8_t *bytes, uint16_t length)
 {
+    if (board_brownout_detected()) {
+        return EPD_VDD_DROOP;
+    }
     HAL_GPIO_WritePin(EPD_DC_PORT, EPD_DC_PIN,
                       data_mode ? GPIO_PIN_SET : GPIO_PIN_RESET);
     HAL_GPIO_WritePin(EPD_CS_PORT, EPD_CS_PIN, GPIO_PIN_RESET);
     const HAL_StatusTypeDef status =
         HAL_SPI_Transmit(epd_spi, (uint8_t *)bytes, length, EPD_SPI_TIMEOUT_MS);
     HAL_GPIO_WritePin(EPD_CS_PORT, EPD_CS_PIN, GPIO_PIN_SET);
+    if (board_brownout_detected()) {
+        return EPD_VDD_DROOP;
+    }
     return status == HAL_OK ? EPD_OK : EPD_IO_ERROR;
 }
 
@@ -42,18 +48,27 @@ epd_result_t epd_ssd1680_wait_ready(uint32_t timeout_ms, bool sample_vdd)
 {
 #if NAMECARD_NFC_FIXED_TEST
     /* During harvested-power refreshes, trade timeout resolution for much
-       fewer CPU wakeups. BUSY remains an EXTI source and wakes WFI immediately. */
+       fewer CPU wakeups. Diagnostic builds retain 20 ms VDD sampling at a
+       100 Hz tick; non-diagnostic builds use only BUSY EXTI plus a 10 Hz
+       timeout tick. */
     const HAL_TickFreqTypeDef original_tick_frequency = HAL_GetTickFreq();
-    const bool reduce_tick_frequency = sample_vdd &&
-                                       (HAL_SetTickFreq(HAL_TICK_FREQ_10HZ) == HAL_OK);
-    if (sample_vdd) {
-        sample_vdd = false;
-    }
+    const HAL_TickFreqTypeDef refresh_tick_frequency =
+#if NAMECARD_DIAGNOSTIC
+        sample_vdd ? HAL_TICK_FREQ_100HZ : HAL_TICK_FREQ_10HZ;
+#else
+        HAL_TICK_FREQ_10HZ;
+#endif
+    const bool reduce_tick_frequency =
+        HAL_SetTickFreq(refresh_tick_frequency) == HAL_OK;
 #endif
     const uint32_t start = HAL_GetTick();
     uint32_t last_sample = start - 20U;
     epd_result_t result = EPD_OK;
     while (board_epd_is_busy()) {
+        if (board_brownout_detected()) {
+            result = EPD_VDD_DROOP;
+            break;
+        }
         const uint32_t now = HAL_GetTick();
         if ((now - start) >= timeout_ms) {
             result = EPD_BUSY_TIMEOUT;
@@ -69,6 +84,9 @@ epd_result_t epd_ssd1680_wait_ready(uint32_t timeout_ms, bool sample_vdd)
         (void)last_sample;
 #endif
         __WFI();
+    }
+    if (board_brownout_detected()) {
+        result = EPD_VDD_DROOP;
     }
 #if NAMECARD_NFC_FIXED_TEST
     if (reduce_tick_frequency) {

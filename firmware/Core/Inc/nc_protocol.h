@@ -15,6 +15,18 @@
 #define NC_IMAGE_HEIGHT 128U
 #define NC_IMAGE_SIZE 4736U
 #define NC_IMAGE_FORMAT_NATIVE_1BPP 1U
+#define NC_PATTERN_CHECKER 1U
+#define NC_PATTERN_NFC_OK 2U
+#define NC_PATTERN_BLACK 3U
+#define NC_PATTERN_WHITE 4U
+#define NC_PATTERN_LONG_BARS 5U
+#define NC_PATTERN_SHORT_BARS 6U
+#define NC_PATTERN_GRID 7U
+#define NC_PATTERN_DIAGONAL 8U
+#define NC_PATTERN_TARGET 9U
+#define NC_PATTERN_TEST_10 10U
+#define NC_PATTERN_FIRST NC_PATTERN_CHECKER
+#define NC_PATTERN_LAST NC_PATTERN_TEST_10
 
 typedef enum {
     NC_TYPE_START = 0x01,
@@ -22,6 +34,7 @@ typedef enum {
     NC_TYPE_COMMIT = 0x03,
     NC_TYPE_STATUS = 0x04,
     NC_TYPE_EXECUTE = 0x05,
+    NC_TYPE_PATTERN = 0x06,
     NC_TYPE_ACK = 0x80,
     NC_TYPE_ERROR = 0x81
 } nc_frame_type_t;
@@ -47,7 +60,8 @@ typedef enum {
     NC_ERROR_EPD_IO = 17,
     NC_ERROR_NFC_IO = 18,
     NC_ERROR_EXECUTE_ACK_TIMEOUT = 19,
-    NC_ERROR_HARDWARE_GATE = 20
+    NC_ERROR_HARDWARE_GATE = 20,
+    NC_ERROR_FLASH_STORE = 21
 } nc_error_t;
 
 typedef struct {
@@ -65,6 +79,7 @@ typedef enum {
     NC_TRANSFER_DUPLICATE,
     NC_TRANSFER_STATUS_ONLY,
     NC_TRANSFER_COMMITTED,
+    NC_TRANSFER_PATTERN,
     NC_TRANSFER_EXECUTE,
     NC_TRANSFER_REJECTED
 } nc_transfer_result_t;
@@ -82,6 +97,7 @@ typedef struct {
     uint16_t last_offset;
     uint16_t last_payload_length;
     uint16_t last_payload_crc;
+    uint8_t pattern_id;
     nc_error_t last_error;
 } nc_transfer_t;
 

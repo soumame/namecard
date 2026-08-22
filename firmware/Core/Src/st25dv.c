@@ -1,31 +1,61 @@
 #include "st25dv.h"
 
 #define ST25DV_USER_I2C_ADDRESS (0x53U << 1)
+#define ST25DV_SYSTEM_I2C_ADDRESS (0x57U << 1)
+#define ST25DV_EH_MODE 0x0002U
+#define ST25DV_FTM 0x000DU
 #define ST25DV_EH_CTRL_DYN 0x2002U
+#define ST25DV_I2C_SSO_DYN 0x2004U
 #define ST25DV_MB_CTRL_DYN 0x2006U
 #define ST25DV_MB_LEN_DYN 0x2007U
 #define ST25DV_MAILBOX 0x2008U
 #define ST25DV_I2C_TIMEOUT_MS 20U
+#define ST25DV_I2C_ATTEMPTS 3U
 
 static I2C_HandleTypeDef *st25_i2c;
 
-static st25dv_result_t read_register(uint16_t address, uint8_t *data, uint16_t length)
+static st25dv_result_t read_register_at(uint16_t device, uint16_t address,
+                                       uint8_t *data, uint16_t length)
 {
-    return HAL_I2C_Mem_Read(st25_i2c, ST25DV_USER_I2C_ADDRESS, address,
-                            I2C_MEMADD_SIZE_16BIT, data, length,
-                            ST25DV_I2C_TIMEOUT_MS) == HAL_OK
-               ? ST25DV_OK
-               : ST25DV_IO_ERROR;
+    for (uint32_t attempt = 0U; attempt < ST25DV_I2C_ATTEMPTS; ++attempt) {
+        if (HAL_I2C_Mem_Read(st25_i2c, device, address,
+                             I2C_MEMADD_SIZE_16BIT, data, length,
+                             ST25DV_I2C_TIMEOUT_MS) == HAL_OK) {
+            return ST25DV_OK;
+        }
+        if ((attempt + 1U) < ST25DV_I2C_ATTEMPTS) {
+            HAL_Delay(1U);
+        }
+    }
+    return ST25DV_IO_ERROR;
+}
+
+static st25dv_result_t read_register(uint16_t address, uint8_t *data,
+                                     uint16_t length)
+{
+    return read_register_at(ST25DV_USER_I2C_ADDRESS, address, data, length);
+}
+
+static st25dv_result_t write_register_at(uint16_t device, uint16_t address,
+                                        const uint8_t *data, uint16_t length)
+{
+    for (uint32_t attempt = 0U; attempt < ST25DV_I2C_ATTEMPTS; ++attempt) {
+        if (HAL_I2C_Mem_Write(st25_i2c, device, address,
+                              I2C_MEMADD_SIZE_16BIT, (uint8_t *)data, length,
+                              ST25DV_I2C_TIMEOUT_MS) == HAL_OK) {
+            return ST25DV_OK;
+        }
+        if ((attempt + 1U) < ST25DV_I2C_ATTEMPTS) {
+            HAL_Delay(1U);
+        }
+    }
+    return ST25DV_IO_ERROR;
 }
 
 static st25dv_result_t write_register(uint16_t address, const uint8_t *data,
-                                     uint16_t length)
+                                      uint16_t length)
 {
-    return HAL_I2C_Mem_Write(st25_i2c, ST25DV_USER_I2C_ADDRESS, address,
-                             I2C_MEMADD_SIZE_16BIT, (uint8_t *)data, length,
-                             ST25DV_I2C_TIMEOUT_MS) == HAL_OK
-               ? ST25DV_OK
-               : ST25DV_IO_ERROR;
+    return write_register_at(ST25DV_USER_I2C_ADDRESS, address, data, length);
 }
 
 void st25dv_bind(I2C_HandleTypeDef *i2c)
@@ -40,6 +70,71 @@ st25dv_result_t st25dv_probe(void)
     }
     return HAL_I2C_IsDeviceReady(st25_i2c, ST25DV_USER_I2C_ADDRESS, 2U,
                                  ST25DV_I2C_TIMEOUT_MS) == HAL_OK
+               ? ST25DV_OK
+               : ST25DV_IO_ERROR;
+}
+
+st25dv_result_t st25dv_factory_enable_eh_at_boot(void)
+{
+    uint8_t eh_mode = 0xFFU;
+    uint8_t ftm = 0U;
+    if (read_register_at(ST25DV_SYSTEM_I2C_ADDRESS, ST25DV_EH_MODE,
+                         &eh_mode, 1U) != ST25DV_OK ||
+        read_register_at(ST25DV_SYSTEM_I2C_ADDRESS, ST25DV_FTM,
+                         &ftm, 1U) != ST25DV_OK) {
+        return ST25DV_IO_ERROR;
+    }
+    if ((eh_mode == 0U) && ((ftm & 0x01U) != 0U)) {
+        return ST25DV_OK;
+    }
+
+    /* I2C Present Password: address 0900h, password MSB first, validation
+       code 09h, then the same password again. Factory password is all zero. */
+    uint8_t present_password[19] = {0};
+    present_password[0] = 0x09U;
+    present_password[1] = 0x00U;
+    present_password[10] = 0x09U;
+    if (HAL_I2C_Master_Transmit(st25_i2c, ST25DV_SYSTEM_I2C_ADDRESS,
+                                present_password, sizeof(present_password),
+                                ST25DV_I2C_TIMEOUT_MS) != HAL_OK) {
+        return ST25DV_IO_ERROR;
+    }
+
+    uint8_t security = 0U;
+    if ((read_register(ST25DV_I2C_SSO_DYN, &security, 1U) != ST25DV_OK) ||
+        ((security & 0x01U) == 0U)) {
+        return ST25DV_IO_ERROR;
+    }
+    if (eh_mode != 0U) {
+        eh_mode = 0U;
+        if (write_register_at(ST25DV_SYSTEM_I2C_ADDRESS, ST25DV_EH_MODE,
+                              &eh_mode, 1U) != ST25DV_OK ||
+            HAL_I2C_IsDeviceReady(st25_i2c, ST25DV_SYSTEM_I2C_ADDRESS, 20U,
+                                  ST25DV_I2C_TIMEOUT_MS) != HAL_OK) {
+            return ST25DV_IO_ERROR;
+        }
+    }
+
+    /* FTM.MB_MODE is a nonvolatile authorization bit. A fresh KC device
+     * ships with it clear; MB_CTRL_Dyn.MB_EN cannot be set until this bit is
+     * programmed. Preserve the watchdog selection in bits 3:1. */
+    if ((ftm & 0x01U) == 0U) {
+        ftm |= 0x01U;
+        if (write_register_at(ST25DV_SYSTEM_I2C_ADDRESS, ST25DV_FTM,
+                              &ftm, 1U) != ST25DV_OK ||
+            HAL_I2C_IsDeviceReady(st25_i2c, ST25DV_SYSTEM_I2C_ADDRESS, 20U,
+                                  ST25DV_I2C_TIMEOUT_MS) != HAL_OK) {
+            return ST25DV_IO_ERROR;
+        }
+    }
+
+    eh_mode = 0xFFU;
+    ftm = 0U;
+    return (read_register_at(ST25DV_SYSTEM_I2C_ADDRESS, ST25DV_EH_MODE,
+                             &eh_mode, 1U) == ST25DV_OK) &&
+                   (read_register_at(ST25DV_SYSTEM_I2C_ADDRESS, ST25DV_FTM,
+                                     &ftm, 1U) == ST25DV_OK) &&
+                   (eh_mode == 0U) && ((ftm & 0x01U) != 0U)
                ? ST25DV_OK
                : ST25DV_IO_ERROR;
 }

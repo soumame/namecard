@@ -8,8 +8,9 @@ enable_testing()
 add_executable(test_protocol
     test_protocol.c
     ../Core/Src/crc.c
+    ../Core/Src/fixed_image.c
     ../Core/Src/nc_protocol.c
 )
 target_include_directories(test_protocol PRIVATE ../Core/Inc)
-target_compile_options(test_protocol PRIVATE -Wall -Wextra -Werror)
+target_compile_options(test_protocol PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 add_test(NAME protocol COMMAND test_protocol)

@@ -2,15 +2,22 @@
 
 static volatile bool epd_busy_edge;
 static volatile bool nfc_gpo_edge;
+static volatile bool brownout_latched;
 
-void board_early_epd_power_off(void)
+void board_early_power_safe(void)
 {
     RCC->IOPENR |= RCC_IOPENR_GPIOAEN;
     (void)RCC->IOPENR;
-    GPIOA->MODER = (GPIOA->MODER & ~(3UL << (6U * 2U))) |
-                   (1UL << (6U * 2U));
-    GPIOA->OTYPER &= ~GPIO_OTYPER_OT6;
-    GPIOA->BSRR = (uint32_t)GPIO_PIN_6 << 16U;
+
+    /* Preload PA0 high before enabling its output driver so the TPS22917
+       self-hold path cannot glitch low.  PA6 is preloaded low to keep the EPD
+       rail off throughout C/HAL initialization. */
+    GPIOA->BSRR = PWR_HOLD_PIN | ((uint32_t)EPD_POWER_EN_PIN << 16U);
+    GPIOA->OTYPER &= ~(GPIO_OTYPER_OT0 | GPIO_OTYPER_OT6);
+    GPIOA->PUPDR &= ~((3UL << (0U * 2U)) | (3UL << (6U * 2U)));
+    GPIOA->MODER =
+        (GPIOA->MODER & ~((3UL << (0U * 2U)) | (3UL << (6U * 2U)))) |
+        (1UL << (0U * 2U)) | (1UL << (6U * 2U));
 }
 
 void board_epd_bus_hiz(void)
@@ -48,9 +55,10 @@ void board_gpio_init(void)
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
 
+    HAL_GPIO_WritePin(PWR_HOLD_PORT, PWR_HOLD_PIN, GPIO_PIN_SET);
     HAL_GPIO_WritePin(EPD_POWER_EN_PORT, EPD_POWER_EN_PIN, GPIO_PIN_RESET);
     GPIO_InitTypeDef gpio = {0};
-    gpio.Pin = EPD_POWER_EN_PIN;
+    gpio.Pin = PWR_HOLD_PIN | EPD_POWER_EN_PIN;
     gpio.Mode = GPIO_MODE_OUTPUT_PP;
     gpio.Pull = GPIO_NOPULL;
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
@@ -71,9 +79,63 @@ void board_gpio_init(void)
     HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 }
 
+HAL_StatusTypeDef board_power_guard_init(void)
+{
+    PWR_PVDTypeDef pvd = {0};
+    pvd.PVDLevel = PWR_PVDLEVEL_4;
+    pvd.Mode = PWR_PVD_MODE_IT_FALLING;
+
+    brownout_latched = false;
+    __HAL_PWR_PVD_EXTI_CLEAR_RISING_FLAG();
+    __HAL_PWR_PVD_EXTI_CLEAR_FALLING_FLAG();
+    if (HAL_PWREx_ConfigPVD(&pvd) != HAL_OK) {
+        return HAL_ERROR;
+    }
+    HAL_NVIC_SetPriority(PVD_IRQn, 0U, 0U);
+    HAL_NVIC_EnableIRQ(PVD_IRQn);
+    HAL_PWREx_EnablePVD();
+    HAL_Delay(1U); /* PVD startup is at most a few microseconds. */
+    if (__HAL_PWR_GET_FLAG(PWR_FLAG_PVDO)) {
+        board_brownout_shutdown_isr();
+        return HAL_ERROR;
+    }
+    return HAL_OK;
+}
+
+void board_power_hold_enable(void)
+{
+    HAL_GPIO_WritePin(PWR_HOLD_PORT, PWR_HOLD_PIN, GPIO_PIN_SET);
+}
+
+void board_power_hold_release(void)
+{
+    HAL_GPIO_WritePin(PWR_HOLD_PORT, PWR_HOLD_PIN, GPIO_PIN_RESET);
+}
+
+void board_brownout_shutdown_isr(void)
+{
+    const uint32_t epd_bus_mode_mask =
+        (3UL << (1U * 2U)) | (3UL << (2U * 2U)) |
+        (3UL << (3U * 2U)) | (3UL << (5U * 2U)) |
+        (3UL << (7U * 2U));
+
+    brownout_latched = true;
+    GPIOA->BSRR = (uint32_t)EPD_POWER_EN_PIN << 16U;
+    GPIOA->MODER |= epd_bus_mode_mask; /* Analog/no-pull: no EPD back-power. */
+    GPIOA->BSRR = (uint32_t)PWR_HOLD_PIN << 16U;
+    __DSB();
+}
+
+bool board_brownout_detected(void)
+{
+    return brownout_latched;
+}
+
 void board_epd_power_on(void)
 {
-    HAL_GPIO_WritePin(EPD_POWER_EN_PORT, EPD_POWER_EN_PIN, GPIO_PIN_SET);
+    if (!brownout_latched) {
+        HAL_GPIO_WritePin(EPD_POWER_EN_PORT, EPD_POWER_EN_PIN, GPIO_PIN_SET);
+    }
 }
 
 void board_epd_power_off(void)

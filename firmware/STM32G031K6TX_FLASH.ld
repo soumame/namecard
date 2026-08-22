@@ -1,3 +1,4 @@
+/* STM32G031K6: 32 KiB Flash, 8 KiB SRAM. */
 ENTRY(Reset_Handler)
 
 _Min_Heap_Size = 0x0;
@@ -6,10 +7,15 @@ _Min_Stack_Size = 0x400;
 MEMORY
 {
   RAM   (xrw) : ORIGIN = 0x20000000, LENGTH = 8K
-  FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 32K
+  /* First 20 KiB are executable. The final six 2-KiB pages form two
+     atomic 6-KiB display-image slots. */
+  FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 20K
+  DISPLAY_STORE (r) : ORIGIN = 0x08005000, LENGTH = 12K
 }
 
 _estack = ORIGIN(RAM) + LENGTH(RAM);
+__display_store_start__ = ORIGIN(DISPLAY_STORE);
+__display_store_end__ = ORIGIN(DISPLAY_STORE) + LENGTH(DISPLAY_STORE);
 
 SECTIONS
 {
@@ -97,8 +103,8 @@ SECTIONS
   /DISCARD/ : { libc.a(*) libm.a(*) libgcc.a(*) }
 }
 
-ASSERT(((LOADADDR(.data) + SIZEOF(.data)) - ORIGIN(FLASH)) <= 28672,
-       "Flash usage exceeds 28 KiB")
+ASSERT(((LOADADDR(.data) + SIZEOF(.data)) - ORIGIN(FLASH)) <= LENGTH(FLASH),
+       "Application exceeds 20 KiB reserved code area")
 ASSERT((_ebss - ORIGIN(RAM)) <= 7168, "Static RAM usage exceeds 7 KiB")
 ASSERT((ORIGIN(RAM) + LENGTH(RAM) - _ebss) >= _Min_Stack_Size,
        "Less than 1 KiB remains for stack")

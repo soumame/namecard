@@ -1,59 +1,85 @@
-# Hardware gate — FW試験前に必須
+# Hardware gate — namecard v4
 
-## STOP: TPS22917 C19
+FWを書き込む前に、実装済み基板そのものを確認する。v4回路図では旧版の
+`C19のCT接続`と`BS1/VSH2`入替えは修正済みなので、部品を外すリワークは不要。
+ただしPCBAの実装不良やFPC向きは回路図チェックでは検出できない。
 
-現行のIPC netlistでは次の接続になっている。
+## 1. 無通電チェック
 
-```text
-U3 pin 4 CT ─ C19 1nF ─ GND
-```
+EPD、ST-Link、スマホを外す。TP7をGNDとして次を抵抗レンジで測定し、2枚を比較する。
 
-TPS22917の仕様はCTコンデンサを`CT–VIN`間に接続する。TIもCTをGNDへ接続しない
-よう明示している。この差はPA6制御やLUTでは修正できない。
+| 測定点 | Net | 判定 |
+|---|---|---|
+| TP3 | V_EH_RAW | GNDへ固定短絡しない |
+| TP10 | VRAW | GNDへ固定短絡しない |
+| TP1またはTP11 | VRES_3V3 | GNDへ固定短絡しない |
+| TP8 | SYS_VDD | GNDへ固定短絡しない |
+| TP6 | EPD_SW | GNDへ固定短絡しない |
 
-試験前にC19のGND側を浮かせ、`SYS_VDD`へ接続して`CT–SYS_VDD = 1nF`とする。
-CT openは最速立上りになるが、NFCの弱い電源では突入電流を増やすので初回条件に
-しない。リワーク後に無通電でCT–GNDが短絡していないことを確認する。
+1.65mFのVRES容量があるため、測定開始時の抵抗が低く、充電に従って上がるのは正常。
+数秒後も10Ω未満で固定される場合は通電しない。
 
-## FPC / EPD確認
+極性は次を目視確認する。
 
-コネクタ実装方向とFPC接点面を含め、パネル側の論理端子で測定する。回路上のJ1番号
-だけを信用しない。
+- C14–C17: 正極が基板中央側
+- C46/C48/C49: 正極が基板中央側
+- C39: 正極が左側
+- D1: カソード帯が左
+- D2/D3/D5: カソード帯が右
+- D6: カソード帯が左
 
-- `BS1`: GNDへ直結（導通レンジでほぼ0Ω）
-- `VSH2`: 1µFを介してGND。直流短絡でないこと
-- `VCI`: TPS22917出力`EPD_SW`
-- `CS/DC/RST/BUSY/SCK/MOSI`: 指定したMCUピンへ導通
+## 2. EPDなしの初回通電
+
+J2の3.3V/GNDへ電流制限20–30mAの外部3.3Vを接続する。5Vは禁止。
+ST-LinkのVTrefは同じ3.3Vへ接続し、別の3.3V出力を並列接続しない。
+
+1. `FW: Provision BOR3 (2.5V falling)`を一度だけ実行する。
+2. `FW: Flash release`を書き込む。
+3. TP8/SYS_VDDが約3.3V、TP6/EPD_SWがほぼ0Vであることを確認する。
+4. STM32CubeProgrammerがSTM32G031K6を認識することを確認する。
+
+PA0/PWR_HOLDはReset Handler後、HAL初期化より前からHighになる。PVD4下降検出時は
+PA6をLow、EPDバスをAnalog、PA0をLowへ切り替える。BOR3はそれより低い電圧での
+最終リセット保護であり、Option Byteを一度設定しなければ有効にならない。
+
+## 3. FPC / EPD確認
+
+必ず電源を切ってからFPCを接続する。コネクタ実装方向とFPC接点面を含め、
+パネル側の論理端子で確認する。
+
+- `BS1`: GNDへ直結（4-wire SPI）
+- `VSH2`: C2 1µFを介してGND。直流短絡ではない
+- `VCI/VDDIO`: `EPD_SW`
+- `CS/DC/RST/BUSY/SCK/MOSI`: 対応するSTM32端子
 - `VSS`: GND
 
-現行netlistではJ1-17にC2、J1-20にGNDがあるため、24ピンFPCの反転を含めて
-`BS1`と`VSH2`の実端子を特に確認する。不一致なら配線リワークが終わるまでFWで
-EPDをONにしない。
+外部3.3Vで`FW: Flash external-power-self-test`を実行し、FullとPartialの完了後に
+TP6がほぼ0Vへ戻ることを確認する。
 
-## TPS22917 / PA6をDMMだけで確認する
+## 4. ST25DV provisioning
 
-1. `release`を外部3.3Vで起動する。EPD_SWがほぼ0Vであること。
-2. PA6–U3 ONの導通を無通電で確認する。
-3. `external-power-self-test`を使用し、EPD_SWが約3.3Vへ上がること。
-4. 試験終了またはエラー後、EPD_SWが再びほぼ0Vになること。
-
-オシロスコープなしでは立上り時間や瞬間的な谷は確認できない。FWの`minimum_vdd_mv`
-は20msサンプリングなので、20ms未満のドロップを「存在しない」とは判定できない。
-発注可否の最終確認ではオシロスコープを借りるか、最低値保持付き電圧ロガーを使う。
-
-## ST25DV04K provisioning
-
-外部電源を接続して一度だけ、RF側から次を静的設定する。
+ST25公式アプリから静的設定を一度確認する。この設定はRF給電だけでも書き込める。
+外部3.3Vを使う場合はEPD電源がOFFであることを確認する。
 
 - `MB_MODE=1`: Fast Transfer Modeを許可
-- `EH_MODE=0`: RF電界検出後にEHを自動有効化
+- `EH_MODE=0`: RF電界検出後にV_EHを自動有効化
 
-FWは起動後に動的`MB_EN`を設定し、`EH_CTRL_Dyn`をSTATUSへ返す。ただし
-`EH_MODE`が誤っているとMCU自身が起動できず、FWから直すことはできない。
+新品のST25DVは`MB_MODE=0`、`EH_MODE=1`が初期値なので、実装した基板ごとに設定する。
+工場出荷時のRF configuration password 0は8-byteすべて0。設定後はスマホを完全に
+離してRF電界を一度切る。FWは動的`MB_EN`を設定できるが、静的`MB_MODE=0`では
+`AEh`コマンドがerror `10h`（block not available）になり、MCUが起動する前に必要な
+`EH_MODE`もFWからは直せない。
 
-## 初回試験条件
+## 5. DMMだけで確認できる電源鎖
 
-- SWDデバッガー、USB-UART、外部電源を完全に外すのは外部電源試験合格後
-- スマホ–アンテナ距離は約5mm以下、位置を固定
-- TP1/SYS_VDDをDMMで測り、更新前2.95V以上、更新後2.4V以上
-- 5回のPartialごとに外部電源でFullを1回行う
+スマホをアンテナ上に固定し、次を順に測定する。
+
+- TP3/V_EH_RAW: 実測目安2.3–2.7V
+- TP10/VRAW: TP3よりわずかに低い
+- TP1またはTP11/VRES_3V3: 3.20–3.3Vまで充電
+- TP8/SYS_VDD: MCU動作中およそ3.3V
+- TP6/EPD_SW: 待機中0V、更新中のみSYS_VDD相当
+
+DMMでは短い電圧降下を捕捉できない。FWは診断ビルドでVREFINTを20msごとに記録し、
+PVD4は非同期に電圧低下を検出する。量産判断前には可能ならオシロスコープまたは
+高速ロガーでSYS_VDDとEPD_SWを同時確認する。

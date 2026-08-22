@@ -93,8 +93,22 @@
       "problemMatcher": ["$gcc"]
     },
     {
+      "label": "FW: Provision BOR3 (2.5V falling)",
+      "detail": "STM32G031 option bytesを一度だけ設定。EPDは外し、外部3.3VとST-Linkを使用する",
+      "type": "process",
+      "command": "arch",
+      "args": [
+        "-x86_64",
+        "/Applications/STMicroelectronics/STM32Cube/STM32CubeProgrammer/STM32CubeProgrammer.app/Contents/Resources/bin/STM32_Programmer_CLI",
+        "-c", "port=SWD", "freq=1000", "mode=UR", "reset=HWrst",
+        "-ob", "BOR_EN=1", "BORF_LEV=2", "BORR_LEV=2",
+        "-rst"
+      ],
+      "problemMatcher": []
+    },
+    {
       "label": "FW: Flash external-power-self-test",
-      "detail": "C19とFPCのハードウェアゲート確認後、外部3.3Vで使用する",
+      "detail": "v4実装・FPC確認後、EPD接続＋外部3.3VでFull→Partialを確認する",
       "type": "process",
       "command": "arch",
       "args": [
@@ -110,7 +124,7 @@
     },
     {
       "label": "FW: Flash nfc-fixed-test",
-      "detail": "現行基板向け低電圧・8行分割版。書き込み後はST-Linkと外部電源を完全に外す",
+      "detail": "v4用3.20V開始・8行分割フォールバック。書き込み後はST-Linkと外部電源を完全に外す",
       "type": "process",
       "command": "arch",
       "args": [
@@ -126,7 +140,7 @@
     },
     {
       "label": "FW: Flash nfc-fixed-one-shot",
-      "detail": "最終Go/No-Go判定用。低電圧・全画面Partial 1回。外付け4x330uFを接続し、書き込み後はST-Linkと外部電源を完全に外す",
+      "detail": "v4の主試験。基板上VRESだけで3.20V充電後、全画面Partialを1回実行する",
       "type": "process",
       "command": "arch",
       "args": [
@@ -142,7 +156,7 @@
     },
     {
       "label": "FW: Flash prepare-white",
-      "detail": "NFC固定画像試験の前に、外部3.3Vで画面を全面白へ揃える",
+      "detail": "量産初期化: 外部3.3VでEH_MODE=0/FTM許可を設定し、Full白表示とFlash基準画像を揃える",
       "type": "process",
       "command": "arch",
       "args": [
@@ -158,7 +172,7 @@
     },
     {
       "label": "FW: Flash release",
-      "detail": "NFC固定画像試験合格後のMailbox転送版",
+      "detail": "STATUS・1-byte内蔵パターン・分割画像転送に対応するMailbox版",
       "type": "process",
       "command": "arch",
       "args": [
@@ -170,6 +184,90 @@
       ],
       "dependsOn": "FW: Build release",
       "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Build NFC test client",
+      "detail": "STATUS→軽量NFC OK→4736-byte分割転送の試験APKを作成する",
+      "type": "process",
+      "command": "gradle",
+      "args": [":app:assembleDebug", "--no-daemon"],
+      "options": {
+        "cwd": "${workspaceFolder}/firmware/tools/android-client",
+        "env": {
+          "JAVA_HOME": "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home",
+          "ANDROID_HOME": "/Users/so/Library/Android/sdk",
+          "GRADLE_USER_HOME": "/tmp/namecard-gradle-home"
+        }
+      },
+      "problemMatcher": ["$javac"]
+    },
+    {
+      "label": "Android: Install NFC test client",
+      "detail": "USBデバッグ接続したAndroid端末へdebug APKを上書きインストールする",
+      "type": "process",
+      "command": "/Users/so/Library/Android/sdk/platform-tools/adb",
+      "args": [
+        "install", "-r",
+        "${workspaceFolder}/firmware/tools/android-client/app/build/outputs/apk/debug/app-debug.apk"
+      ],
+      "dependsOn": "Android: Build NFC test client",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Tools: Generate sample native image",
+      "detail": "分割転送用の4736-byteチェック柄を/tmpへ生成する",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/firmware/tools/namecard_protocol.py",
+        "make-image", "--pattern", "checker",
+        "--output", "/tmp/namecard-checker.bin"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Push sample native image",
+      "detail": "分割転送用チェック柄をAndroidのDownloadへコピーする",
+      "type": "process",
+      "command": "/Users/so/Library/Android/sdk/platform-tools/adb",
+      "args": ["push", "/tmp/namecard-checker.bin", "/sdcard/Download/namecard-checker.bin"],
+      "dependsOn": "Tools: Generate sample native image",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "iOS: Build NFC test client (unsigned)",
+      "detail": "Core NFC試験アプリを実機SDK向けにコード署名なしでコンパイルする",
+      "type": "process",
+      "command": "/usr/bin/xcodebuild",
+      "args": [
+        "-project", "${workspaceFolder}/firmware/tools/ios-client/NamecardNFCTest.xcodeproj",
+        "-scheme", "NamecardNFCTest",
+        "-configuration", "Debug",
+        "-sdk", "iphoneos",
+        "-destination", "generic/platform=iOS",
+        "-derivedDataPath", "/tmp/namecard-ios-derived",
+        "CODE_SIGNING_ALLOWED=NO",
+        "build"
+      ],
+      "options": {
+        "env": {
+          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
+        }
+      },
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "iOS: Open NFC test client in Xcode",
+      "detail": "Teamを選択して接続中のiPhoneへRunする",
+      "type": "process",
+      "command": "/usr/bin/open",
+      "args": [
+        "-a", "Xcode",
+        "${workspaceFolder}/firmware/tools/ios-client/NamecardNFCTest.xcodeproj"
+      ],
       "problemMatcher": []
     }
   ]

@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "crc.h"
+#include "fixed_image.h"
 #include "nc_protocol.h"
 
 static uint8_t raw[NC_FRAME_MAX_SIZE];
@@ -162,12 +163,94 @@ static void test_image_crc_rejection(void)
     assert(!transfer.committed);
 }
 
+static void test_builtin_pattern_transfer(void)
+{
+    nc_transfer_t transfer;
+    nc_transfer_reset(&transfer);
+    const uint8_t pattern[] = {NC_PATTERN_NFC_OK};
+    nc_frame_t frame = make_frame(NC_TYPE_PATTERN, 0x4321U, 0U, 0U,
+                                  pattern, sizeof(pattern));
+    nc_transfer_reply_t reply = nc_transfer_apply(&transfer, &frame, received);
+    assert(reply.result == NC_TRANSFER_PATTERN);
+    assert(transfer.active && transfer.committed);
+    assert(transfer.pattern_id == NC_PATTERN_NFC_OK);
+    assert(reply.expected_sequence == 1U && reply.expected_offset == NC_IMAGE_SIZE);
+
+    reply = nc_transfer_apply(&transfer, &frame, received);
+    assert(reply.result == NC_TRANSFER_DUPLICATE);
+
+    frame = make_frame(NC_TYPE_EXECUTE, 0x4321U, 1U, NC_IMAGE_SIZE,
+                       NULL, 0U);
+    reply = nc_transfer_apply(&transfer, &frame, received);
+    assert(reply.result == NC_TRANSFER_EXECUTE);
+
+    const uint8_t invalid[] = {0xFFU};
+    frame = make_frame(NC_TYPE_PATTERN, 0x2222U, 0U, 0U,
+                       invalid, sizeof(invalid));
+    reply = nc_transfer_apply(&transfer, &frame, received);
+    assert(reply.result == NC_TRANSFER_REJECTED);
+    assert(reply.error == NC_ERROR_COMMAND);
+
+    for (uint8_t id = NC_PATTERN_FIRST; id <= NC_PATTERN_LAST; ++id) {
+        nc_transfer_reset(&transfer);
+        frame = make_frame(NC_TYPE_PATTERN, (uint16_t)(0x5000U + id),
+                           0U, 0U, &id, 1U);
+        reply = nc_transfer_apply(&transfer, &frame, received);
+        assert(reply.result == NC_TRANSFER_PATTERN);
+        assert(transfer.pattern_id == id);
+    }
+
+    const uint8_t too_low[] = {0U};
+    frame = make_frame(NC_TYPE_PATTERN, 0x6000U, 0U, 0U,
+                       too_low, sizeof(too_low));
+    assert(nc_transfer_apply(&transfer, &frame, received).error == NC_ERROR_COMMAND);
+
+    const uint8_t too_high[] = {NC_PATTERN_LAST + 1U};
+    frame = make_frame(NC_TYPE_PATTERN, 0x6001U, 0U, 0U,
+                       too_high, sizeof(too_high));
+    assert(nc_transfer_apply(&transfer, &frame, received).error == NC_ERROR_COMMAND);
+}
+
+static void test_nfc_ok_pattern_pixels(void)
+{
+    fixed_image_make_nfc_ok_pattern(image);
+    assert(nc_crc32_ieee(image, sizeof(image)) == 0xBF59E395UL);
+    size_t black = 0U;
+    size_t white = 0U;
+    for (size_t index = 0U; index < sizeof(image); ++index) {
+        for (uint8_t bit = 0U; bit < 8U; ++bit) {
+            if ((image[index] & (uint8_t)(0x80U >> bit)) == 0U) {
+                ++black;
+            } else {
+                ++white;
+            }
+        }
+    }
+    assert(black > 2000U);
+    assert(white > black);
+}
+
+static void test_all_pattern_images_are_distinct(void)
+{
+    uint32_t crc[NC_PATTERN_LAST];
+    for (uint8_t id = NC_PATTERN_FIRST; id <= NC_PATTERN_LAST; ++id) {
+        fixed_image_make_pattern(image, id);
+        crc[id - 1U] = nc_crc32_ieee(image, sizeof(image));
+        for (uint8_t previous = NC_PATTERN_FIRST; previous < id; ++previous) {
+            assert(crc[id - 1U] != crc[previous - 1U]);
+        }
+    }
+}
+
 int main(void)
 {
     test_crc_and_frame();
     test_complete_transfer();
     test_rejections_and_restart();
     test_image_crc_rejection();
+    test_builtin_pattern_transfer();
+    test_nfc_ok_pattern_pixels();
+    test_all_pattern_images_are_distinct();
     puts("protocol tests passed");
     return 0;
 }

@@ -10,7 +10,8 @@
 typedef enum {
     EPD_OK = 0,
     EPD_IO_ERROR,
-    EPD_BUSY_TIMEOUT
+    EPD_BUSY_TIMEOUT,
+    EPD_VDD_DROOP
 } epd_result_t;
 
 void epd_ssd1680_bind(SPI_HandleTypeDef *spi);

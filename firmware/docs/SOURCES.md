@@ -12,6 +12,8 @@
   <https://www.st.com/resource/en/application_note/an4913-energy-harvesting-delivery-impact-on-st25dvi2c-series-behaviour-during-rf-communication-stmicroelectronics.pdf>
 - TPS22917 datasheet:
   <https://www.ti.com/lit/ds/symlink/tps22917.pdf>
+- STM32G031x6 datasheet (pinout, PVD and BOR electrical characteristics):
+  <https://www.st.com/resource/en/datasheet/stm32g031f6.pdf>
 
 Vendored under `Drivers/`:
 

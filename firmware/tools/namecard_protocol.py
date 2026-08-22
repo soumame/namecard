@@ -15,7 +15,8 @@ HEADER = struct.Struct("<2sBBHHHHHH")
 IMAGE_SIZE = 4736
 MAX_PAYLOAD = 240
 
-START, DATA, COMMIT, STATUS, EXECUTE = range(1, 6)
+START, DATA, COMMIT, STATUS, EXECUTE, PATTERN = range(1, 7)
+PATTERNS = {"checker": 1, "nfc-ok": 2}
 
 
 def crc16(data: bytes, initial: int = 0xFFFF) -> int:
@@ -68,6 +69,46 @@ def test_image() -> bytes:
     return bytes(data)
 
 
+def nfc_ok_image() -> bytes:
+    data = bytearray([0xFF] * IMAGE_SIZE)
+    glyphs = (
+        (0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11),
+        (0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10),
+        (0x0F, 0x10, 0x10, 0x10, 0x10, 0x10, 0x0F),
+        (0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E),
+        (0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11),
+    )
+    scale = 6
+
+    def black(long_axis: int, short_axis: int) -> None:
+        if 0 <= long_axis < 296 and 0 <= short_axis < 128:
+            index = long_axis * 16 + short_axis // 8
+            data[index] &= ~(0x80 >> (short_axis % 8))
+
+    for long_axis in range(296):
+        black(long_axis, 1)
+        black(long_axis, 126)
+    for short_axis in range(128):
+        black(1, short_axis)
+        black(294, short_axis)
+
+    cursor = (296 - 34 * scale) // 2
+    top = (128 - 7 * scale) // 2
+    for index, rows in enumerate(glyphs):
+        if index == 3:
+            cursor += 5 * scale
+        for row, bits in enumerate(rows):
+            for column in range(5):
+                if not bits & (0x10 >> column):
+                    continue
+                for dy in range(scale):
+                    for dx in range(scale):
+                        black(cursor + column * scale + dx,
+                              top + row * scale + dy)
+        cursor += 6 * scale
+    return bytes(data)
+
+
 def make_transfer(image: bytes, transfer_id: int) -> list[bytes]:
     if len(image) != IMAGE_SIZE:
         raise ValueError(f"native image must be exactly {IMAGE_SIZE} bytes")
@@ -108,6 +149,17 @@ def command_decode(args: argparse.Namespace) -> None:
     print(json.dumps(parsed, indent=2))
 
 
+def command_pattern(args: argparse.Namespace) -> None:
+    frame = build_frame(PATTERN, args.transfer_id, 0, 0,
+                        bytes((PATTERNS[args.pattern],)))
+    Path(args.output).write_bytes(frame)
+
+
+def command_make_image(args: argparse.Namespace) -> None:
+    image = test_image() if args.pattern == "checker" else nfc_ok_image()
+    Path(args.output).write_bytes(image)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(required=True)
@@ -121,6 +173,15 @@ def main() -> None:
     decode = commands.add_parser("decode")
     decode.add_argument("frame")
     decode.set_defaults(handler=command_decode)
+    pattern = commands.add_parser("pattern", help="generate one built-in-pattern command")
+    pattern.add_argument("--pattern", choices=PATTERNS, default="nfc-ok")
+    pattern.add_argument("--transfer-id", type=lambda value: int(value, 0), default=1)
+    pattern.add_argument("--output", required=True)
+    pattern.set_defaults(handler=command_pattern)
+    make_image = commands.add_parser("make-image", help="generate a 4736-byte native test image")
+    make_image.add_argument("--pattern", choices=PATTERNS, default="nfc-ok")
+    make_image.add_argument("--output", required=True)
+    make_image.set_defaults(handler=command_make_image)
     args = parser.parse_args()
     args.handler(args)
 

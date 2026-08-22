@@ -15,11 +15,14 @@ static void MX_SPI1_Init(void);
 
 int main(void)
 {
-    /* TPS22917 must be held off before HAL or any alternate-function pin setup. */
-    board_early_epd_power_off();
+    /* Latch the system rail and hold the EPD off before HAL touches GPIOs. */
+    board_early_power_safe();
     HAL_Init();
     SystemClock_Config();
     board_gpio_init();
+    if (board_power_guard_init() != HAL_OK) {
+        Error_Handler();
+    }
     MX_ADC1_Init();
     MX_I2C1_Init();
     MX_SPI1_Init();
@@ -49,7 +52,7 @@ static void SystemClock_Config(void)
     }
 
     clocks.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1;
-    clocks.xSource = RCC_SYSCLKSOURCE_HSI;
+    clocks.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
     clocks.AHBCLKDivider = RCC_SYSCLK_DIV2;
     clocks.APB1CLKDivider = RCC_HCLK_DIV1;
     if (HAL_RCC_ClockConfig(&clocks, FLASH_LATENCY_0) != HAL_OK) {
@@ -139,6 +142,7 @@ void Error_Handler(void)
 {
     __disable_irq();
     board_epd_power_off();
+    board_power_hold_release();
     while (1) {
     }
 }

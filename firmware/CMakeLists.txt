@@ -11,10 +11,10 @@ option(NAMECARD_PREPARE_WHITE "Perform one external-power full refresh to white"
 option(NAMECARD_NFC_FIXED_TEST "Refresh a generated image from harvested power at boot" OFF)
 option(NAMECARD_DIAGNOSTIC "Retain minimum VDD during refresh" ON)
 
-# The release thresholds remain the conservative values from the validation
-# plan.  Presets may lower them explicitly for a measured, low-voltage board
-# experiment without silently changing the production build.
-set(NAMECARD_CHARGE_READY_MV 2950 CACHE STRING
+# The v4 TPS63900 rail is regulated to 3.3 V.  Starting at 3.20 V preserves
+# enough stored energy for a full-screen Partial refresh; the lower checks
+# reject an immediate rail collapse after the EPD load switch is enabled.
+set(NAMECARD_CHARGE_READY_MV 3200 CACHE STRING
     "SYS_VDD required before enabling the EPD")
 set(NAMECARD_EPD_ON_MIN_MV 2850 CACHE STRING
     "Minimum SYS_VDD after enabling the EPD load switch")
@@ -61,6 +61,7 @@ set(APP_SOURCES
     Core/Src/app.c
     Core/Src/board.c
     Core/Src/crc.c
+    Core/Src/display_store.c
     Core/Src/epd_ssd1680.c
     Core/Src/fixed_image.c
     Core/Src/main.c
@@ -70,13 +71,13 @@ set(APP_SOURCES
     Core/Src/stm32g0xx_hal_msp.c
     Core/Src/stm32g0xx_it.c
     Drivers/CMSIS/Device/ST/STM32G0xx/Source/Templates/system_stm32g0xx.c
-    Drivers/CMSIS/Device/ST/STM32G0xx/Source/Templates/gcc/startup_stm32g030xx.s
+    Drivers/CMSIS/Device/ST/STM32G0xx/Source/Templates/gcc/startup_stm32g031xx.s
 )
 
 add_executable(namecard_fw ${APP_SOURCES} ${HAL_SOURCES})
 set_target_properties(namecard_fw PROPERTIES SUFFIX ".elf")
 set_property(TARGET namecard_fw APPEND PROPERTY LINK_DEPENDS
-             ${CMAKE_CURRENT_SOURCE_DIR}/STM32G030K6TX_FLASH.ld)
+             ${CMAKE_CURRENT_SOURCE_DIR}/STM32G031K6TX_FLASH.ld)
 
 target_include_directories(namecard_fw PRIVATE
     Core/Inc
@@ -85,7 +86,7 @@ target_include_directories(namecard_fw PRIVATE
     Drivers/CMSIS/Core/Include
 )
 target_compile_definitions(namecard_fw PRIVATE
-    STM32G030xx USE_HAL_DRIVER
+    STM32G031xx USE_HAL_DRIVER
     NAMECARD_BOOT_SELF_TEST=$<BOOL:${NAMECARD_BOOT_SELF_TEST}>
     NAMECARD_PREPARE_WHITE=$<BOOL:${NAMECARD_PREPARE_WHITE}>
     NAMECARD_NFC_FIXED_TEST=$<BOOL:${NAMECARD_NFC_FIXED_TEST}>
@@ -104,7 +105,7 @@ target_compile_options(namecard_fw PRIVATE
 )
 target_link_options(namecard_fw PRIVATE
     ${MCU_FLAGS}
-    -T${CMAKE_CURRENT_SOURCE_DIR}/STM32G030K6TX_FLASH.ld
+    -T${CMAKE_CURRENT_SOURCE_DIR}/STM32G031K6TX_FLASH.ld
     -Wl,--gc-sections -Wl,--cref
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/namecard_fw.map
     -Wl,--print-memory-usage

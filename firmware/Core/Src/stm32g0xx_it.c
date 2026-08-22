@@ -8,6 +8,7 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
     board_epd_power_off();
+    board_power_hold_release();
     while (1) {
     }
 }
@@ -23,6 +24,16 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
     HAL_IncTick();
+}
+
+void PVD_IRQHandler(void)
+{
+    HAL_PWREx_PVD_IRQHandler();
+}
+
+void HAL_PWREx_PVD_Falling_Callback(void)
+{
+    board_brownout_shutdown_isr();
 }
 
 void EXTI4_15_IRQHandler(void)

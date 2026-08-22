@@ -56,5 +56,8 @@ firmware/tools/android-client/.gradle/
 firmware/tools/android-client/app/build/
 firmware/tools/android-client/build/
 firmware/tools/android-client/local.properties
+**/xcuserdata/
+*.xcuserstate
+DerivedData/
 firmware/.cache/
 firmware/compile_commands.json

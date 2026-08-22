@@ -3,12 +3,15 @@
   "configurePresets": [
     {
       "name": "release",
-      "displayName": "STM32G030 release",
+      "displayName": "STM32G031K6 v4 release",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/release",
       "toolchainFile": "${sourceDir}/cmake/arm-none-eabi-gcc.cmake",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "MinSizeRel"
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "NAMECARD_CHARGE_READY_MV": "3200",
+        "NAMECARD_EPD_ON_MIN_MV": "2850",
+        "NAMECARD_EPD_START_MIN_MV": "2800"
       }
     },
     {
@@ -25,16 +28,13 @@
       "binaryDir": "${sourceDir}/build/nfc-fixed-test",
       "cacheVariables": {
         "NAMECARD_NFC_FIXED_TEST": "ON",
-        "NAMECARD_CHARGE_READY_MV": "2500",
-        "NAMECARD_EPD_ON_MIN_MV": "2300",
-        "NAMECARD_EPD_START_MIN_MV": "2250",
         "NAMECARD_CHARGE_TIMEOUT_MS": "60000",
         "NAMECARD_NFC_BAND_ROWS": "8"
       }
     },
     {
       "name": "nfc-fixed-one-shot",
-      "displayName": "NFC fixed image - one full-screen Partial",
+      "displayName": "v4 NFC fixed image - one full-screen Partial",
       "inherits": "nfc-fixed-test",
       "binaryDir": "${sourceDir}/build/nfc-fixed-one-shot",
       "cacheVariables": {

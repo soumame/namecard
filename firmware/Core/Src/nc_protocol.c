@@ -172,6 +172,27 @@ nc_transfer_reply_t nc_transfer_apply(nc_transfer_t *transfer,
         return reply(transfer, NC_TRANSFER_ACCEPTED, NC_ERROR_NONE);
     }
 
+    if (frame->type == NC_TYPE_PATTERN) {
+        if (is_duplicate(transfer, frame) && transfer->active) {
+            return reply(transfer, NC_TRANSFER_DUPLICATE, NC_ERROR_NONE);
+        }
+        if ((frame->sequence != 0U) || (frame->offset != 0U) ||
+            (frame->payload_length != 1U) ||
+            (frame->payload[0] < NC_PATTERN_FIRST) ||
+            (frame->payload[0] > NC_PATTERN_LAST)) {
+            return reject(transfer, NC_ERROR_COMMAND);
+        }
+        nc_transfer_reset(transfer);
+        transfer->active = true;
+        transfer->committed = true;
+        transfer->transfer_id = frame->transfer_id;
+        transfer->expected_sequence = 1U;
+        transfer->expected_offset = NC_IMAGE_SIZE;
+        transfer->pattern_id = frame->payload[0];
+        remember(transfer, frame);
+        return reply(transfer, NC_TRANSFER_PATTERN, NC_ERROR_NONE);
+    }
+
     if (!transfer->active || (frame->transfer_id != transfer->transfer_id)) {
         return reject(transfer, NC_ERROR_TRANSFER_ID);
     }

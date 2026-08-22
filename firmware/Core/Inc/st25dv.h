@@ -21,6 +21,10 @@ typedef enum {
 
 void st25dv_bind(I2C_HandleTypeDef *i2c);
 st25dv_result_t st25dv_probe(void);
+/* Factory operation: external 3.3 V must be present. Enables EH-at-boot and
+ * authorizes FTM, using the factory-default all-zero I2C password. The
+ * password is intentionally left unchanged for developer access. */
+st25dv_result_t st25dv_factory_enable_eh_at_boot(void);
 st25dv_result_t st25dv_enable_mailbox(void);
 st25dv_result_t st25dv_read_mailbox_control(uint8_t *control);
 st25dv_result_t st25dv_read_eh_control(uint8_t *control);
