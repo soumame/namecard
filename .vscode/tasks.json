@@ -188,16 +188,14 @@
     },
     {
       "label": "Android: Build NFC test client",
-      "detail": "STATUS→軽量NFC OK→4736-byte分割転送の試験APKを作成する",
+      "detail": "画像エディターと4736-byte分割転送を含む試験APKを作成する",
       "type": "process",
-      "command": "gradle",
+      "command": "${workspaceFolder}/client/android/gradlew",
       "args": [":app:assembleDebug", "--no-daemon"],
       "options": {
-        "cwd": "${workspaceFolder}/firmware/tools/android-client",
+        "cwd": "${workspaceFolder}/client/android",
         "env": {
-          "JAVA_HOME": "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home",
-          "ANDROID_HOME": "/Users/so/Library/Android/sdk",
-          "GRADLE_USER_HOME": "/tmp/namecard-gradle-home"
+          "ANDROID_HOME": "${env:HOME}/Library/Android/sdk"
         }
       },
       "problemMatcher": ["$javac"]
@@ -206,12 +204,36 @@
       "label": "Android: Install NFC test client",
       "detail": "USBデバッグ接続したAndroid端末へdebug APKを上書きインストールする",
       "type": "process",
-      "command": "/Users/so/Library/Android/sdk/platform-tools/adb",
+      "command": "${env:HOME}/Library/Android/sdk/platform-tools/adb",
       "args": [
         "install", "-r",
-        "${workspaceFolder}/firmware/tools/android-client/app/build/outputs/apk/debug/app-debug.apk"
+        "${workspaceFolder}/client/android/app/build/outputs/apk/debug/app-debug.apk"
       ],
       "dependsOn": "Android: Build NFC test client",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Remove incompatible NFC test client",
+      "detail": "署名不一致の旧テストアプリとアプリデータを端末から削除する",
+      "type": "process",
+      "command": "${env:HOME}/Library/Android/sdk/platform-tools/adb",
+      "args": ["uninstall", "jp.namecard.nfctest"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Clean install NFC test client (signature reset)",
+      "detail": "APKをビルドし、署名不一致の旧版を削除して新しいdebug APKをインストールする",
+      "type": "process",
+      "command": "${env:HOME}/Library/Android/sdk/platform-tools/adb",
+      "args": [
+        "install",
+        "${workspaceFolder}/client/android/app/build/outputs/apk/debug/app-debug.apk"
+      ],
+      "dependsOn": [
+        "Android: Build NFC test client",
+        "Android: Remove incompatible NFC test client"
+      ],
       "dependsOrder": "sequence",
       "problemMatcher": []
     },
@@ -231,7 +253,7 @@
       "label": "Android: Push sample native image",
       "detail": "分割転送用チェック柄をAndroidのDownloadへコピーする",
       "type": "process",
-      "command": "/Users/so/Library/Android/sdk/platform-tools/adb",
+      "command": "${env:HOME}/Library/Android/sdk/platform-tools/adb",
       "args": ["push", "/tmp/namecard-checker.bin", "/sdcard/Download/namecard-checker.bin"],
       "dependsOn": "Tools: Generate sample native image",
       "dependsOrder": "sequence",

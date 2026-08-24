@@ -95,7 +95,7 @@ python3 firmware/tools/namecard_protocol.py decode /tmp/namecard-frames/00-start
 ```
 
 Maker Faire版の対応クライアントはAndroidのみとする。実機送信用のAndroid NFC-Vクライアントは
-[`tools/android-client`](tools/android-client/README.md) にある。
+[`client/android`](../client/android/README.md) にある。
 iPhoneは専用Core NFCアプリでEH可能なことを確認済みだが、署名・entitlementと別の
 検証工程が必要なため今回の製品サポート外とする。プロトコル自体はOS非依存のまま保つ。
 
