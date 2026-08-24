@@ -3,15 +3,62 @@
 Android Studioでこのディレクトリを開き、実機へインストールする。画面上で次の
 いずれかを選択してからST25DV04Kへタッチする。
 
+クライアント本体はKotlin 2.3とJetpack Compose 1.9 / Material 3で実装する。
+メイン画面と296×128エディターCanvasはCompose UIで、ドラッグと2本指ピンチも
+Composeのpointer inputで処理する。NFCのブロッキングI/Oは`Dispatchers.IO`上の
+コルーチンで実行し、画面終了時はコルーチンとNFC接続をまとめてキャンセルする。
+プロトコル、ACK検証、転送再開状態はUIから分離し、JVM単体テストでCRCと画像形式を
+確認する。
+
 1. `接続・STATUS確認`: Mailbox通信だけ。EPDは更新しない
 2. `選択パターン`: 10種類から選び、1-byteのpattern IDだけで全画面Partialを実行
 3. `10種類を連続書き換え`: checkerからTEST 10までを同じRF接続で順番に実行
-4. `4736-byte画像`: `EPD_NATIVE_1BPP`を可変長DATAへ分割して転送
+4. `テキスト・画像を編集`: 296×128のキャンバスを編集し、BIN化して転送
+5. `画像BIN`: 選択方式に応じて4,736-byte白黒、または9,472-byte 4階調を分割転送
 
-CLIで確認する場合はAndroid SDKの場所を`local.properties`へ設定して実行する。
+画像送信前に`ドット密度（白黒）`または`4階調（ピクセル濃度）`を選ぶ。4階調は
+各ピクセルを黒・濃灰・薄灰・白へ量子化し、4,736-byteのSSD1680 RAM planeを2枚送る。
+第1 planeはFWがFlashへ保存するため、途中でMCUが再起動しても第2 planeだけ再送できる。
+
+画像エディターまたは既存BINから書き込む場合、実パネルで前画面のゴーストが
+確認されたため、既定で`白 → 黒 → 白`の3回のPartialクリーニング後に
+本画像を更新する。v0.8対応FWでは画像を1回だけ転送・Flash保存し、FW内部で
+`白 → 黒 → 白 → 本画像`を連続実行する。中間画像のNFC転送とFlash書込みがなく、
+従来方式より短時間で済む。旧FWではAndroidが各段階を順に送る互換動作へ自動で戻る。
+途中で電源断した場合、保存済み本画像から一括クリーニングを白段階から安全に再開する。
+
+メイン画面の`画質優先：毎回白→黒→白でクリーニング`をOFFにすると、
+前回の確定済み画像から直接Partial更新する高速試験になる。ただしゴーストが残る
+可能性がある。OFFでもrecovery pendingまたはERROR状態の場合は自動クリーニングする。
+これはNFC給電で可能なPartialクリーニングであり、保守時のFull白更新は従来どおり
+外部3.3Vの`prepare-white`を使用する。
+
+## 画像エディター
+
+メイン画面の`テキスト・画像を編集して書き込む`を開くと、実ディスプレイと同じ
+296×128の横長キャンバスが表示される。
+
+1. 上部の入力欄へ文字を入力し、`テキスト追加`を押す。日本語も端末のシステム
+   フォントで描画する
+2. `画像追加`から端末内のJPEG、PNG、WebPなどを選ぶ
+3. テキストまたは画像を1本指でドラッグして移動する。2本指のピンチ、または
+   `小さく` / `大きく`でサイズを変える
+4. 必要なら`前面へ` / `背面へ`で重なり順を変える
+5. `BIN保存`は選択方式に応じた4,736-byteまたは9,472-byteデータを端末へ保存する
+6. `この画像を書き込む`はメイン画面へ戻り、生成済みBINを既存の再開対応NFC転送へ
+   セットする。その後、名刺へタッチして完了まで位置を固定する
+
+画像とテキストは白背景へ合成される。ドット密度方式は輝度と4×4 ordered ditheringで
+1bitへ変換する。4階調方式は輝度を4段階へ量子化し、SSD1680の2つのRAM planeへ変換する。
+どちらも16 bytes × 296 rows、MSB firstのネイティブ順である。
+選択枠は編集UIだけに表示され、BINには含まれない。
+
+CLIでは同梱のGradle Wrapperを使う。Android SDKは`ANDROID_HOME`、またはgit管理外の
+`local.properties`に設定する。初回だけWrapperが検証済みGradle 8.13を取得する。
+ComposeのコンパイルとLintに必要なGradleヒープは`gradle.properties`で2GiBに設定する。
 
 ```sh
-gradle :app:assembleDebug
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
 APKは`app/build/outputs/apk/debug/app-debug.apk`へ生成される。電源投入後の最初の
@@ -22,13 +69,26 @@ VS Codeからは`Android: Build NFC test client`、USBデバッグ接続後は
 用意するには`Android: Push sample native image`を実行し、アプリからDownload内の
 `namecard-checker.bin`を選択する。
 
-クライアントはST25DVの通常速度Mailboxコマンド（`AAh`〜`AEh`）を使う。端末の
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE`は、端末内の旧APKと新APKのデバッグ署名が
+異なる場合に発生する。VS Codeの
+`Android: Clean install NFC test client (signature reset)`を一度だけ実行する。
+このタスクは`jp.namecard.nfctest`の旧版とアプリデータを削除してから再インストール
+する。以後、同じデバッグ鍵を使う限り通常の`Android: Install NFC test client`で
+上書きできる。
+
+クライアントはST25DVの通常速度Mailboxコマンド（`AAh`〜`AEh`）を使う。DATA間隔は
+ACKのVDDに応じて50/200/500msを自動選択し、電圧に余裕がある時は固定500ms待機を省く。端末の
 `maxTransceiveLength`が小さい場合はDATA payloadを240 bytes未満へ自動的に縮める。
 FWは可変長DATAを受理するため、転送フレーム数だけが20より増える。
 
 COMMIT/PATTERN ACK後はまず1.5秒間、VRES充電のため`transceive()`を止める。
-`EXECUTE` ACKを読み終えた後も最低2秒間通信を止め、NFC-V接続とRF電界だけを残す。
-Reader Modeのpresence check間隔は5秒に設定済み。画面ロックや別アプリへの切替を
+通常/旧FW互換更新では`EXECUTE` ACK後も最低2秒間通信を止める。4階調では32行ごとに
+Reset、2段階初期化、C7、Deep Sleep、EPD OFFを独立して行い再充電するため最低60秒、
+FW一括クリーニング
+ではACK指定値（最低1秒）のあとSTATUSを低頻度で確認し、FWが再充電と4段階更新を
+進める間はNFC-V接続とRF電界を残す。
+Reader Modeのpresence check間隔は120秒に設定し、4階調の再充電中に余計なRFコマンドを
+発生させない。転送中は画面ロックを抑止する。別アプリへの切替を
 行わず、完了表示まで端末を動かさないこと。
 
 前提として、ST25DVの静的`MB_MODE=1`と`EH_MODE=0`を事前にプロビジョニングする。
@@ -61,11 +121,15 @@ MCU起動を1.5秒待つ。UIDが表示されてから`MCU ACK timeout`になる
 と通信できれば反応する一方、このアプリの全試験は継続給電でMCUも動かすため、安定
 動作する距離は公式アプリの読取距離より短くなる。
 
-画像DATA転送中に`TagLost`になった場合、Android側は最後にACK済みのTransfer ID、
-Sequence、Offsetを保持する。ファイルを選び直さず、そのまま再タッチすると同じDATA
-から再送する。MCUが状態を保持していれば重複ACKまたは次のOffsetから継続し、電源断で
+画像DATA転送中に`TagLost`、通常のNFC `IOException`、ACK timeout、Mailbox busyに
+なった場合、Android側は最後にACK済みのTransfer ID、Sequence、Offsetを保持する。
+古い`Tag`オブジェクトを閉じ、Reader Modeを300ms後に再初期化するため、ホーム画面へ
+戻らなくても再検出できる。ファイルを選び直さず、そのまま再タッチすると同じDATAから
+再送する。MCUが状態を保持していれば重複ACKまたは次のOffsetから継続し、電源断で
 MCUが再起動していれば`NC_ERROR_TRANSFER_ID`を受けてSTARTから自動的にやり直す。
 Androidアプリ自体を終了・再インストールした場合、RAM上の再開情報は失われる。
+エディターからメイン画面へ戻った後は生成済みBINをRAMに保持するため、NFC転送中に
+タグを見失っても画像を編集し直す必要はない。
 10パターン連続試験は、完了した番号をAndroid側に保持する。途中でTagLostまたはACK
 timeoutになってもReader Modeを再起動し、同じ位置へ戻せば未完了番号から再試行する。
 ただし名刺側MCUも電源断した場合は旧画像RAMの対応を失うため、濃度評価は最初から
