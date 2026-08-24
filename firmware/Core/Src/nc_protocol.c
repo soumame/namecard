@@ -156,18 +156,33 @@ nc_transfer_reply_t nc_transfer_apply(nc_transfer_t *transfer,
             (frame->payload_length != 16U)) {
             return reject(transfer, NC_ERROR_COMMAND);
         }
+        const uint8_t image_format = frame->payload[6];
+        const uint8_t plane_index = frame->payload[7];
+        const bool mono_format =
+            (image_format == NC_IMAGE_FORMAT_NATIVE_1BPP) &&
+            (plane_index == 1U);
+        const bool gray4_format =
+            (image_format == NC_IMAGE_FORMAT_GRAY4_PLANE) &&
+            (plane_index < NC_GRAY4_PLANE_COUNT);
         if ((nc_protocol_get_u16(&frame->payload[0]) != NC_IMAGE_WIDTH) ||
             (nc_protocol_get_u16(&frame->payload[2]) != NC_IMAGE_HEIGHT) ||
             (nc_protocol_get_u16(&frame->payload[4]) != NC_IMAGE_SIZE) ||
-            (frame->payload[6] != NC_IMAGE_FORMAT_NATIVE_1BPP) ||
-            (frame->payload[7] != 1U)) {
+            (!mono_format && !gray4_format)) {
             return reject(transfer, NC_ERROR_IMAGE_FORMAT);
+        }
+        const uint32_t flags = nc_protocol_get_u32(&frame->payload[12]);
+        if (((flags & ~NC_TRANSFER_FLAGS_SUPPORTED) != 0U) ||
+            (gray4_format && (flags != 0U))) {
+            return reject(transfer, NC_ERROR_COMMAND);
         }
         nc_transfer_reset(transfer);
         transfer->active = true;
         transfer->transfer_id = frame->transfer_id;
         transfer->expected_sequence = 1U;
         transfer->expected_crc32 = nc_protocol_get_u32(&frame->payload[8]);
+        transfer->flags = flags;
+        transfer->image_format = image_format;
+        transfer->plane_index = gray4_format ? plane_index : 0U;
         remember(transfer, frame);
         return reply(transfer, NC_TRANSFER_ACCEPTED, NC_ERROR_NONE);
     }
@@ -189,6 +204,7 @@ nc_transfer_reply_t nc_transfer_apply(nc_transfer_t *transfer,
         transfer->expected_sequence = 1U;
         transfer->expected_offset = NC_IMAGE_SIZE;
         transfer->pattern_id = frame->payload[0];
+        transfer->image_format = NC_IMAGE_FORMAT_NATIVE_1BPP;
         remember(transfer, frame);
         return reply(transfer, NC_TRANSFER_PATTERN, NC_ERROR_NONE);
     }

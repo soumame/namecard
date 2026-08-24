@@ -41,7 +41,7 @@ Full白更新した後、同じ白画像をSTM32内蔵Flashのdisplay storeへco
 
 v4ではTPS63900の3.3V VRESと基板上約1.65mFを使用し、充電完了3.20V、EPD電源ON後
 2.85V、更新開始直前2.80Vを下限とする。全画面Partialを1回だけ実行し、充電待ちは
-最大60秒とする。診断ビルドはPartial BUSY中のSysTickを100Hzへ落とし、20msごとに
+最大60秒とする。診断ビルドはPartial BUSY中のSysTickを10Hzへ落とし、100msごとに
 最低VDDを保持する。
 
 - 距離約5mm以下で10/10回Partial成功
@@ -74,6 +74,8 @@ one-shotと同じ3.20V / 2.85V / 2.80Vであり、旧基板向けの低電圧閾
 - 全面白へ戻し、1-byteの`NFC OK` PATTERN→STATUS→EXECUTEで全画面更新できる
 - 10種類の内蔵PATTERNを電界を切らずに連続更新し、各回COMPLETEかつ表示濃度が揃う
 - 連続試験中のTagLost後、完了済み番号を飛ばして未完了PATTERNから再開できる
+- 画像転送中のTagLost、NFC IOException、ACK timeout後にホーム画面へ戻らず
+  Reader Modeが再開し、保存済みOffsetから再送できる
 - 再び全面白へ戻してから、以下の4,736-byte分割転送へ進む
 - 240-byte DATA×19 + 176-byte DATA×1（合計4,736）
 - 同じDATAを2回送り、offsetが一度だけ進む
@@ -83,6 +85,11 @@ one-shotと同じ3.20V / 2.85V / 2.80Vであり、旧基板向けの低電圧閾
 - 4,736 bytes + COMMIT成功前はPA6がHighにならない
 - COMMIT後の最初のREADYまでにFlash stageと再充電が入り、PA6はLowのまま
 - 更新完了後に完全に電源を切り、別画像へ更新しても旧画像差分が正しい
+- 9,472-byte 4階調BINを送り、EXECUTE後に32行帯域ごとの更新と再充電を繰り返して
+  COMPLETEまで無操作で完走する。次帯域の更新後も描画済み帯域の濃度が低下せず、
+  末尾16行に未更新・境界線・階調ずれがない
+- 4階調更新中のCHARGINGではAndroidがEXECUTEを再送せず、同じTransfer IDのまま
+  FWの次帯域を待つ。途中で離した場合は保存済みplane 0からplane 1再送で回復する
 
 ## 4. Power removal matrix
 

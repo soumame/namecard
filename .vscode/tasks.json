@@ -258,39 +258,6 @@
       "dependsOn": "Tools: Generate sample native image",
       "dependsOrder": "sequence",
       "problemMatcher": []
-    },
-    {
-      "label": "iOS: Build NFC test client (unsigned)",
-      "detail": "Core NFC試験アプリを実機SDK向けにコード署名なしでコンパイルする",
-      "type": "process",
-      "command": "/usr/bin/xcodebuild",
-      "args": [
-        "-project", "${workspaceFolder}/firmware/tools/ios-client/NamecardNFCTest.xcodeproj",
-        "-scheme", "NamecardNFCTest",
-        "-configuration", "Debug",
-        "-sdk", "iphoneos",
-        "-destination", "generic/platform=iOS",
-        "-derivedDataPath", "/tmp/namecard-ios-derived",
-        "CODE_SIGNING_ALLOWED=NO",
-        "build"
-      ],
-      "options": {
-        "env": {
-          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
-        }
-      },
-      "problemMatcher": ["$msCompile"]
-    },
-    {
-      "label": "iOS: Open NFC test client in Xcode",
-      "detail": "Teamを選択して接続中のiPhoneへRunする",
-      "type": "process",
-      "command": "/usr/bin/open",
-      "args": [
-        "-a", "Xcode",
-        "${workspaceFolder}/firmware/tools/ios-client/NamecardNFCTest.xcodeproj"
-      ],
-      "problemMatcher": []
     }
   ]
 }

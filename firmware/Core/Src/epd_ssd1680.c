@@ -8,6 +8,8 @@
 
 static SPI_HandleTypeDef *epd_spi;
 
+static epd_result_t activate(uint8_t update_control2);
+
 static epd_result_t send_bytes(bool data_mode, const uint8_t *bytes, uint16_t length)
 {
     if (board_brownout_detected()) {
@@ -46,21 +48,12 @@ void epd_ssd1680_bind(SPI_HandleTypeDef *spi)
 
 epd_result_t epd_ssd1680_wait_ready(uint32_t timeout_ms, bool sample_vdd)
 {
-#if NAMECARD_NFC_FIXED_TEST
-    /* During harvested-power refreshes, trade timeout resolution for much
-       fewer CPU wakeups. Diagnostic builds retain 20 ms VDD sampling at a
-       100 Hz tick; non-diagnostic builds use only BUSY EXTI plus a 10 Hz
-       timeout tick. */
+    /* BUSY edges wake the CPU through EXTI. Keep SysTick at 10 Hz for every
+       refresh path so the release four-gray waveform does not waste the very
+       small harvested-power margin on 1 kHz timeout wakeups. */
     const HAL_TickFreqTypeDef original_tick_frequency = HAL_GetTickFreq();
-    const HAL_TickFreqTypeDef refresh_tick_frequency =
-#if NAMECARD_DIAGNOSTIC
-        sample_vdd ? HAL_TICK_FREQ_100HZ : HAL_TICK_FREQ_10HZ;
-#else
-        HAL_TICK_FREQ_10HZ;
-#endif
     const bool reduce_tick_frequency =
-        HAL_SetTickFreq(refresh_tick_frequency) == HAL_OK;
-#endif
+        HAL_SetTickFreq(HAL_TICK_FREQ_10HZ) == HAL_OK;
     const uint32_t start = HAL_GetTick();
     uint32_t last_sample = start - 20U;
     epd_result_t result = EPD_OK;
@@ -88,11 +81,9 @@ epd_result_t epd_ssd1680_wait_ready(uint32_t timeout_ms, bool sample_vdd)
     if (board_brownout_detected()) {
         result = EPD_VDD_DROOP;
     }
-#if NAMECARD_NFC_FIXED_TEST
     if (reduce_tick_frequency) {
         (void)HAL_SetTickFreq(original_tick_frequency);
     }
-#endif
     return result;
 }
 
@@ -126,6 +117,91 @@ epd_result_t epd_ssd1680_initialize(void)
     if (result == EPD_OK) result = command_data(0x3CU, border, sizeof(border));
     if (result == EPD_OK) result = command_data(0x21U, update_control1, sizeof(update_control1));
     if (result == EPD_OK) result = command_data(0x18U, internal_temperature, sizeof(internal_temperature));
+    return result;
+}
+
+epd_result_t epd_ssd1680_initialize_gray4(void)
+{
+    epd_result_t result = epd_ssd1680_initialize();
+    if (result == EPD_OK) {
+        result = activate(0xB1U); /* Load the internal temperature value. */
+    }
+    if (result == EPD_OK) {
+        result = epd_ssd1680_wait_ready(EPD_BUSY_TIMEOUT_MS, false);
+    }
+    return result;
+}
+
+epd_result_t epd_ssd1680_finish_gray4_initialization(void)
+{
+    epd_result_t result = EPD_OK;
+    static const uint8_t gray4_temperature[] = {0x5AU, 0x00U};
+    result = command_data(0x1AU, gray4_temperature,
+                          sizeof(gray4_temperature));
+    if (result == EPD_OK) {
+        result = activate(0x91U); /* Reload the four-gray waveform. */
+    }
+    if (result == EPD_OK) {
+        result = epd_ssd1680_wait_ready(EPD_BUSY_TIMEOUT_MS, false);
+    }
+    return result;
+}
+
+static epd_result_t write_gray4_plane(uint8_t ram_command,
+                                      const uint8_t *data,
+                                      uint16_t length,
+                                      const uint8_t y_address[2])
+{
+    static const uint8_t x_address[] = {0x00U};
+    epd_result_t result =
+        command_data(0x4EU, x_address, sizeof(x_address));
+    if (result == EPD_OK) {
+        result = command_data(0x4FU, y_address, 2U);
+    }
+    if (result == EPD_OK) result = command(ram_command);
+    if (result == EPD_OK) result = send_bytes(true, data, length);
+    return result;
+}
+
+epd_result_t epd_ssd1680_write_gray4_band(
+    const uint8_t plane0[NC_IMAGE_SIZE], const uint8_t plane1[NC_IMAGE_SIZE],
+    uint16_t first_row, uint16_t rows)
+{
+    const uint16_t mux = (uint16_t)(rows - 1U);
+    const uint16_t gate_start =
+        (uint16_t)(NC_IMAGE_WIDTH - first_row - rows);
+    const uint16_t ram_start =
+        (uint16_t)(NC_IMAGE_WIDTH - 1U - first_row);
+    const uint8_t gate_setting[] = {
+        (uint8_t)mux, (uint8_t)(mux >> 8), 0x00U};
+    const uint8_t scan_start[] = {
+        (uint8_t)gate_start, (uint8_t)(gate_start >> 8)};
+    const uint8_t y_window[] = {
+        (uint8_t)ram_start, (uint8_t)(ram_start >> 8),
+        (uint8_t)gate_start, (uint8_t)(gate_start >> 8)};
+    const uint8_t y_address[] = {
+        (uint8_t)ram_start, (uint8_t)(ram_start >> 8)};
+
+    epd_result_t result =
+        command_data(0x01U, gate_setting, sizeof(gate_setting));
+    if (result == EPD_OK) {
+        result = command_data(0x0FU, scan_start, sizeof(scan_start));
+    }
+    if (result == EPD_OK) {
+        result = command_data(0x45U, y_window, sizeof(y_window));
+    }
+
+    const uint16_t band_bytes = (uint16_t)(rows * (NC_IMAGE_HEIGHT / 8U));
+    const uint16_t image_offset =
+        (uint16_t)(first_row * (NC_IMAGE_HEIGHT / 8U));
+    if (result == EPD_OK) {
+        result = write_gray4_plane(0x24U, &plane0[image_offset],
+                                   band_bytes, y_address);
+    }
+    if (result == EPD_OK) {
+        result = write_gray4_plane(0x26U, &plane1[image_offset],
+                                   band_bytes, y_address);
+    }
     return result;
 }
 
@@ -225,6 +301,11 @@ epd_result_t epd_ssd1680_write_previous_frame(const uint8_t image[NC_IMAGE_SIZE]
     return write_frame_ram(0x26U, image); /* Previous image for Mode 2. */
 }
 
+epd_result_t epd_ssd1680_write_solid(uint8_t value)
+{
+    return write_solid_ram(0x24U, value); /* Current/BW RAM. */
+}
+
 epd_result_t epd_ssd1680_write_frame_prefix(const uint8_t image[NC_IMAGE_SIZE],
                                              uint16_t rows)
 {
@@ -281,6 +362,12 @@ epd_result_t epd_ssd1680_start_partial(void)
 {
     /* Good Display one-shot Mode 2 sequence, including analog/clock power-off. */
     return activate(0xFFU);
+}
+
+epd_result_t epd_ssd1680_start_gray4(void)
+{
+    /* Good Display's GDEY029T94 four-gray update sequence. */
+    return activate(0xC7U);
 }
 
 void epd_ssd1680_deep_sleep(void)

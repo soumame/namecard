@@ -9,7 +9,6 @@
 #define DISPLAY_STORE_SLOT_COUNT 2U
 #define DISPLAY_STORE_SLOT_SIZE (6U * 1024U)
 #define DISPLAY_STORE_HEADER_SIZE 64U
-#define DISPLAY_STORE_FORMAT_VERSION 1U
 #define DISPLAY_STORE_NO_SLOT 0xFFU
 
 /* PREPARED and COMMITTED use different Flash double-words. STM32G0 Flash
@@ -18,6 +17,8 @@
 #define DISPLAY_STORE_STAGE_MARKER UINT64_C(0x3150525044434E53)
 #define DISPLAY_STORE_COMMIT_MARKER UINT64_C(0x31544D4344434E53)
 #define DISPLAY_STORE_ERASED UINT64_C(0xFFFFFFFFFFFFFFFF)
+#define DISPLAY_STORE_PATTERN_MASK 0x7FU
+#define DISPLAY_STORE_BATCH_CLEAN 0x80U
 
 typedef struct {
     uint64_t stage_marker;
@@ -72,7 +73,8 @@ static bool slot_valid(uint8_t slot)
         ((header->commit_marker != DISPLAY_STORE_ERASED) &&
          (header->commit_marker != DISPLAY_STORE_COMMIT_MARKER)) ||
         (header->expected_offset != NC_IMAGE_SIZE) ||
-        (header->format_version != DISPLAY_STORE_FORMAT_VERSION) ||
+        ((header->format_version != NC_IMAGE_FORMAT_NATIVE_1BPP) &&
+         (header->format_version != NC_IMAGE_FORMAT_GRAY4_PLANE)) ||
         (header->metadata_crc32 != metadata_crc(header))) {
         return false;
     }
@@ -156,8 +158,23 @@ uint16_t display_store_committed_sequence(void)
 uint8_t display_store_committed_pattern_id(void)
 {
     return display_store_has_committed()
-               ? slot_header(committed_slot)->pattern_id
+               ? (uint8_t)(slot_header(committed_slot)->pattern_id &
+                           DISPLAY_STORE_PATTERN_MASK)
                : 0U;
+}
+
+uint8_t display_store_committed_format(void)
+{
+    return display_store_has_committed()
+               ? slot_header(committed_slot)->format_version
+               : 0U;
+}
+
+bool display_store_committed_batch_clean(void)
+{
+    return display_store_has_committed() &&
+           ((slot_header(committed_slot)->pattern_id &
+             DISPLAY_STORE_BATCH_CLEAN) != 0U);
 }
 
 bool display_store_has_pending(void)
@@ -187,8 +204,23 @@ uint16_t display_store_pending_sequence(void)
 uint8_t display_store_pending_pattern_id(void)
 {
     return display_store_has_pending()
-               ? slot_header(pending_slot)->pattern_id
+               ? (uint8_t)(slot_header(pending_slot)->pattern_id &
+                           DISPLAY_STORE_PATTERN_MASK)
                : 0U;
+}
+
+uint8_t display_store_pending_format(void)
+{
+    return display_store_has_pending()
+               ? slot_header(pending_slot)->format_version
+               : 0U;
+}
+
+bool display_store_pending_batch_clean(void)
+{
+    return display_store_has_pending() &&
+           ((slot_header(pending_slot)->pattern_id &
+             DISPLAY_STORE_BATCH_CLEAN) != 0U);
 }
 
 static bool program_doubleword(uintptr_t address, const void *source)
@@ -201,9 +233,12 @@ static bool program_doubleword(uintptr_t address, const void *source)
 
 bool display_store_stage(const uint8_t image[NC_IMAGE_SIZE],
                          uint16_t transfer_id, uint16_t expected_sequence,
-                         uint8_t pattern_id)
+                         uint8_t pattern_id, uint8_t image_format,
+                         bool batch_clean)
 {
-    if (image == NULL) {
+    if ((image == NULL) ||
+        ((image_format != NC_IMAGE_FORMAT_NATIVE_1BPP) &&
+         (image_format != NC_IMAGE_FORMAT_GRAY4_PLANE))) {
         return false;
     }
 
@@ -221,8 +256,11 @@ bool display_store_stage(const uint8_t image[NC_IMAGE_SIZE],
     header.transfer_id = transfer_id;
     header.expected_sequence = expected_sequence;
     header.expected_offset = NC_IMAGE_SIZE;
-    header.pattern_id = pattern_id;
-    header.format_version = DISPLAY_STORE_FORMAT_VERSION;
+    header.pattern_id = (uint8_t)(pattern_id & DISPLAY_STORE_PATTERN_MASK);
+    if (batch_clean) {
+        header.pattern_id |= DISPLAY_STORE_BATCH_CLEAN;
+    }
+    header.format_version = image_format;
     header.metadata_crc32 = metadata_crc(&header);
 
     FLASH_EraseInitTypeDef erase = {

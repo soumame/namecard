@@ -15,6 +15,10 @@
 #define NC_IMAGE_HEIGHT 128U
 #define NC_IMAGE_SIZE 4736U
 #define NC_IMAGE_FORMAT_NATIVE_1BPP 1U
+#define NC_IMAGE_FORMAT_GRAY4_PLANE 2U
+#define NC_GRAY4_PLANE_COUNT 2U
+#define NC_TRANSFER_FLAG_BATCH_CLEAN 0x00000001UL
+#define NC_TRANSFER_FLAGS_SUPPORTED NC_TRANSFER_FLAG_BATCH_CLEAN
 #define NC_PATTERN_CHECKER 1U
 #define NC_PATTERN_NFC_OK 2U
 #define NC_PATTERN_BLACK 3U
@@ -92,6 +96,9 @@ typedef struct {
     uint16_t expected_sequence;
     uint16_t expected_offset;
     uint32_t expected_crc32;
+    uint32_t flags;
+    uint8_t image_format;
+    uint8_t plane_index;
     uint8_t last_type;
     uint16_t last_sequence;
     uint16_t last_offset;

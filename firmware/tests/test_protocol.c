@@ -46,21 +46,91 @@ static void test_crc_and_frame(void)
     assert(nc_frame_parse(raw, length, &frame) == NC_ERROR_PAYLOAD_CRC);
 }
 
+static nc_transfer_reply_t apply_start(nc_transfer_t *transfer,
+                                       uint16_t transfer_id, uint32_t crc,
+                                       uint8_t format, uint8_t plane,
+                                       uint32_t flags)
+{
+    uint8_t start[16] = {0};
+    nc_protocol_put_u16(&start[0], NC_IMAGE_WIDTH);
+    nc_protocol_put_u16(&start[2], NC_IMAGE_HEIGHT);
+    nc_protocol_put_u16(&start[4], NC_IMAGE_SIZE);
+    start[6] = format;
+    start[7] = plane;
+    nc_protocol_put_u32(&start[8], crc);
+    nc_protocol_put_u32(&start[12], flags);
+    nc_frame_t frame = make_frame(NC_TYPE_START, transfer_id, 0U, 0U,
+                                  start, sizeof(start));
+    return nc_transfer_apply(transfer, &frame, received);
+}
+
+static void start_transfer_with_flags(nc_transfer_t *transfer, uint32_t crc,
+                                      uint32_t flags)
+{
+    nc_transfer_reply_t reply =
+        apply_start(transfer, 0x1234U, crc,
+                    NC_IMAGE_FORMAT_NATIVE_1BPP, 1U, flags);
+    assert(reply.result == NC_TRANSFER_ACCEPTED);
+    reply = apply_start(transfer, 0x1234U, crc,
+                        NC_IMAGE_FORMAT_NATIVE_1BPP, 1U, flags);
+    assert(reply.result == NC_TRANSFER_DUPLICATE);
+}
+
 static void start_transfer(nc_transfer_t *transfer, uint32_t crc)
 {
+    start_transfer_with_flags(transfer, crc, 0U);
+}
+
+static void test_transfer_flags(void)
+{
+    nc_transfer_t transfer;
+    nc_transfer_reset(&transfer);
+    start_transfer_with_flags(&transfer, 0x12345678UL,
+                              NC_TRANSFER_FLAG_BATCH_CLEAN);
+    assert(transfer.flags == NC_TRANSFER_FLAG_BATCH_CLEAN);
+
     uint8_t start[16] = {0};
     nc_protocol_put_u16(&start[0], NC_IMAGE_WIDTH);
     nc_protocol_put_u16(&start[2], NC_IMAGE_HEIGHT);
     nc_protocol_put_u16(&start[4], NC_IMAGE_SIZE);
     start[6] = NC_IMAGE_FORMAT_NATIVE_1BPP;
     start[7] = 1U;
-    nc_protocol_put_u32(&start[8], crc);
-    nc_frame_t frame = make_frame(NC_TYPE_START, 0x1234U, 0U, 0U,
+    nc_protocol_put_u32(&start[8], 0x12345678UL);
+    nc_protocol_put_u32(&start[12], 0x80000000UL);
+    nc_frame_t frame = make_frame(NC_TYPE_START, 0x9876U, 0U, 0U,
                                   start, sizeof(start));
-    nc_transfer_reply_t reply = nc_transfer_apply(transfer, &frame, received);
+    nc_transfer_reply_t reply = nc_transfer_apply(&transfer, &frame, received);
+    assert(reply.result == NC_TRANSFER_REJECTED);
+    assert(reply.error == NC_ERROR_COMMAND);
+}
+
+static void test_gray4_start(void)
+{
+    nc_transfer_t transfer;
+    nc_transfer_reset(&transfer);
+
+    nc_transfer_reply_t reply =
+        apply_start(&transfer, 0x4400U, 0x12345678UL,
+                    NC_IMAGE_FORMAT_GRAY4_PLANE, 0U, 0U);
     assert(reply.result == NC_TRANSFER_ACCEPTED);
-    reply = nc_transfer_apply(transfer, &frame, received);
-    assert(reply.result == NC_TRANSFER_DUPLICATE);
+    assert(transfer.image_format == NC_IMAGE_FORMAT_GRAY4_PLANE);
+    assert(transfer.plane_index == 0U);
+
+    reply = apply_start(&transfer, 0x4400U, 0x87654321UL,
+                        NC_IMAGE_FORMAT_GRAY4_PLANE, 1U, 0U);
+    assert(reply.result == NC_TRANSFER_ACCEPTED);
+    assert(transfer.plane_index == 1U);
+
+    reply = apply_start(&transfer, 0x4400U, 0U,
+                        NC_IMAGE_FORMAT_GRAY4_PLANE, 2U, 0U);
+    assert(reply.result == NC_TRANSFER_REJECTED);
+    assert(reply.error == NC_ERROR_IMAGE_FORMAT);
+
+    reply = apply_start(&transfer, 0x4400U, 0U,
+                        NC_IMAGE_FORMAT_GRAY4_PLANE, 0U,
+                        NC_TRANSFER_FLAG_BATCH_CLEAN);
+    assert(reply.result == NC_TRANSFER_REJECTED);
+    assert(reply.error == NC_ERROR_COMMAND);
 }
 
 static void test_complete_transfer(void)
@@ -245,6 +315,8 @@ static void test_all_pattern_images_are_distinct(void)
 int main(void)
 {
     test_crc_and_frame();
+    test_transfer_flags();
+    test_gray4_start();
     test_complete_transfer();
     test_rejections_and_restart();
     test_image_crc_rejection();

@@ -19,12 +19,20 @@ matrix are required. Do not put an “iPhone cannot power it” claim on the pro
 RF boot -> RECEIVE -> COMMIT/CRC OK -> CHARGE (3.20 V/100 ms)
         -> STAGE target in inactive Flash slot -> RECHARGE
         -> READY -> EXECUTE ACK read -> 100 ms RF-quiet guard
-        -> EPD previous RAM <- committed Flash image
+        -> [optional batch clean: white -> black -> white, recharge each]
+        -> EPD previous RAM <- committed image or final clean white
         -> EPD current RAM  <- target RAM image
-        -> full-screen Partial/BUSY -> COMMIT Flash marker -> COMPLETE
+        -> target Partial/BUSY -> COMMIT Flash marker -> COMPLETE
+
+4-gray: RECEIVE plane 0 -> STAGE plane 0 -> RECEIVE plane 1 in RAM
+        -> [EPD ON -> HW/SW reset -> init stage 1 -> recharge
+            -> init stage 2 -> recharge -> RAM 0x24/0x26 32-row band
+            -> recharge -> 4-gray/BUSY -> deep sleep -> EPD OFF
+            -> recharge] x 9 + final overlapping 16-row band
+        -> COMMIT plane-0 Flash marker -> COMPLETE
 ```
 
-- RAM contains one 4,736-byte target image and one 256-byte mailbox buffer.
+- RAM contains one 4,736-byte image plane and one 256-byte mailbox buffer.
 - Flash pages 0–9 (20 KiB) contain firmware.
 - Flash pages 10–12 and 13–15 are two 6-KiB display-image slots.
 - A slot is valid only when its metadata CRC32 and image CRC32 pass.
@@ -33,9 +41,11 @@ RF boot -> RECEIVE -> COMMIT/CRC OK -> CHARGE (3.20 V/100 ms)
 - If power is removed during DATA, Android restarts from START.
 - If power is removed after Flash staging, the original transfer ID/sequence
   and target survive. The next tap can resume charging and EXECUTE.
-- If power is removed during Partial, the next EXECUTE repeats old->target.
-  This may need one extra cleanup update visually, but it avoids declaring a
-  partly-updated panel as a known target.
+- Four-gray frames use two 4,736-byte transfers. Plane 0 is staged in Flash;
+  plane 1 occupies the same working RAM and is retransmitted after power loss.
+- If power is removed during a normal Partial, the next EXECUTE repeats
+  old->target. During batch cleaning it restarts white->black->white->target.
+  This avoids declaring a partly-updated panel as a known target.
 - If neither slot is valid, firmware assumes the factory physical display is
   white. Therefore every board must pass the factory sequence below.
 
@@ -71,9 +81,15 @@ Correctly persisting the previous frame removes the major avoidable source of
 partial-update artifacts. It does not remove electrophoretic panel ghosting.
 
 - Normal update: one old->target Partial.
-- User-visible “clean” operation: Android performs white -> black -> white ->
-  target as separate updates, with recharge between each. Keep this manual
-  because it is slow and alignment-sensitive.
+- Four-gray update: controller Gate/MUXを32行帯域へ限定し、各帯域をResetから
+  Deep Sleep/EPD OFFまでの独立サイクルにする。帯域間のVCOM/Gate状態を持ち越さず、
+  次の帯域へ進む前に再充電する。
+  末尾8行は最小16行の制約により直前8行と重ねる。空間クリーニングは行わない。
+- Default user-visible “clean” operation: Android transfers target once and
+  requests the firmware batch sequence white -> black -> white -> target.
+  Firmware recharges between updates, does not save intermediate solid frames,
+  and commits only after target BUSY completes. Legacy firmware falls back to
+  Android-driven separate updates.
 - Factory/maintenance clean: external 3.3 V Full refresh to white, then restore
   the target.
 - Record the Partial count in the Android app; suggest cleaning after about
