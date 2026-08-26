@@ -1,6 +1,7 @@
 package jp.namecard.nfctest
 
 import android.nfc.tech.NfcV
+import android.os.SystemClock
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -117,6 +118,8 @@ internal class NfcSessionException(message: String, cause: Throwable? = null) :
 internal class St25Mailbox(
     private val nfc: NfcV,
     private val uid: ByteArray,
+    private val onExchangeResult: ((ack: Ack, responseMillis: Long, requestType: Int) -> Unit)? =
+        null,
 ) {
     suspend fun enable() {
         val control = try {
@@ -134,6 +137,7 @@ internal class St25Mailbox(
     }
 
     suspend fun exchange(message: ByteArray, ackTimeoutMs: Long = 1_500L): Ack {
+        val startedAt = SystemClock.elapsedRealtime()
         waitMailboxFree(1_000L)
         val write = ByteArray(1 + message.size).apply {
             this[0] = (message.size - 1).toByte()
@@ -146,7 +150,15 @@ internal class St25Mailbox(
         val deadline = System.currentTimeMillis() + ackTimeoutMs
         while (System.currentTimeMillis() < deadline) {
             val control = readControl()
-            if (control and 0x02 != 0) return Ack.decode(readHostMessage())
+            if (control and 0x02 != 0) {
+                val ack = Ack.decode(readHostMessage())
+                onExchangeResult?.invoke(
+                    ack,
+                    SystemClock.elapsedRealtime() - startedAt,
+                    message.getOrNull(3)?.toInt()?.and(0xff) ?: 0,
+                )
+                return ack
+            }
             delay(ACK_POLL_MS)
         }
 

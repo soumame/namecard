@@ -76,6 +76,49 @@ object NativeImageFormat {
         else -> throw IllegalArgumentException("unknown image format: $format")
     }
 
+    @JvmStatic
+    fun formatForByteCount(byteCount: Int): Int = when (byteCount) {
+        BYTE_COUNT -> FORMAT_DOT_DENSITY
+        GRAY4_BYTE_COUNT -> FORMAT_GRAY4
+        else -> throw IllegalArgumentException(
+            "BIN must be exactly $BYTE_COUNT or $GRAY4_BYTE_COUNT bytes",
+        )
+    }
+
+    @JvmStatic
+    fun displayName(format: Int): String = when (format) {
+        FORMAT_DOT_DENSITY -> "ドット密度"
+        FORMAT_GRAY4 -> "4階調"
+        else -> throw IllegalArgumentException("unknown image format: $format")
+    }
+
+    @JvmStatic
+    fun decodeArgb(image: ByteArray, format: Int): IntArray {
+        require(image.size == byteCountForFormat(format)) {
+            "BIN size does not match image format"
+        }
+        val shades = intArrayOf(
+            0xff000000.toInt(),
+            0xff555555.toInt(),
+            0xffaaaaaa.toInt(),
+            0xffffffff.toInt(),
+        )
+        return IntArray(WIDTH * HEIGHT) { pixelIndex ->
+            val x = pixelIndex % WIDTH
+            val y = pixelIndex / WIDTH
+            val nativeIndex = x * (HEIGHT / 8) + y / 8
+            val mask = 0x80 ushr (y and 7)
+            if (format == FORMAT_DOT_DENSITY) {
+                if ((image[nativeIndex].toInt() and mask) != 0) shades[3] else shades[0]
+            } else {
+                val low = if ((image[nativeIndex].toInt() and mask) != 0) 0 else 1
+                val highIndex = BYTE_COUNT + nativeIndex
+                val high = if ((image[highIndex].toInt() and mask) != 0) 0 else 2
+                shades[low + high]
+            }
+        }
+    }
+
     private fun validate(pixels: IntArray, width: Int, height: Int) {
         require(width == WIDTH && height == HEIGHT) {
             "canvas must be exactly ${WIDTH}x$HEIGHT"
