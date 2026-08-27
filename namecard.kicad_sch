@@ -2355,7 +2355,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "MCU_ST_STM32G0:STM32G031K6Tx"
+		(symbol "MCU_ST_STM32G0:STM32G031K8Tx"
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
@@ -2372,7 +2372,7 @@
 					(justify left)
 				)
 			)
-			(property "Value" "STM32G031K6Tx"
+			(property "Value" "STM32G031K8Tx"
 				(at 2.54 26.67 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -2395,7 +2395,7 @@
 					(justify right)
 				)
 			)
-			(property "Datasheet" "https://www.st.com/resource/en/datasheet/stm32g031k6.pdf"
+			(property "Datasheet" "https://www.st.com/resource/en/datasheet/stm32g031k8.pdf"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -2406,7 +2406,7 @@
 					)
 				)
 			)
-			(property "Description" "STMicroelectronics Arm Cortex-M0+ MCU, 32KB flash, 8KB RAM, 64 MHz, 1.7-3.6V, 30 GPIO, LQFP32"
+			(property "Description" "STMicroelectronics Arm Cortex-M0+ MCU, 64KB flash, 8KB RAM, 64 MHz, 1.7-3.6V, 30 GPIO, LQFP32"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -2439,7 +2439,7 @@
 					)
 				)
 			)
-			(symbol "STM32G031K6Tx_0_1"
+			(symbol "STM32G031K8Tx_0_1"
 				(rectangle
 					(start -15.24 -22.86)
 					(end 15.24 25.4)
@@ -2452,7 +2452,7 @@
 					)
 				)
 			)
-			(symbol "STM32G031K6Tx_1_1"
+			(symbol "STM32G031K8Tx_1_1"
 				(pin bidirectional line
 					(at -17.78 -17.78 0)
 					(length 2.54)
@@ -3766,7 +3766,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "RF_NFC:ST25DV64K-IER8C3"
+		(symbol "RF_NFC:ST25DV04K-IER8C3"
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
@@ -3782,7 +3782,7 @@
 					)
 				)
 			)
-			(property "Value" "ST25DV64K-IER8C3"
+			(property "Value" "ST25DV04K-IER8C3"
 				(at 10.795 -6.35 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -3814,7 +3814,7 @@
 					)
 				)
 			)
-			(property "Description" "Dynamic NFC/RFID tag IC with 64-Kbit EEPROM, UFDFPN-8"
+			(property "Description" "Dynamic NFC/RFID tag IC with 4-Kbit EEPROM, UFDFPN-8"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -3847,7 +3847,7 @@
 					)
 				)
 			)
-			(symbol "ST25DV64K-IER8C3_1_1"
+			(symbol "ST25DV04K-IER8C3_1_1"
 				(rectangle
 					(start -7.62 5.08)
 					(end 7.62 -5.08)
@@ -4875,7 +4875,7 @@
 		)
 		(uuid "7725a74a-7d14-48f3-9ff9-b95ae5977abd")
 	)
-	(text "U2 ST25DV64KC-IE8C3: provision EH_MODE=0; stage image+CRC in EEPROM; stop RF traffic while TPS63900 charges VRES_3V3."
+	(text "U2 ST25DV04K-IER6C3: provision EH_MODE=0, FTM.MB_MODE=1; use the 256-byte FTM mailbox; images live in MCU Flash; pause RF traffic while VRES_3V3 charges."
 		(exclude_from_sim no)
 		(at 100 194 0)
 		(effects
@@ -9943,7 +9943,7 @@
 		)
 	)
 	(symbol
-		(lib_id "RF_NFC:ST25DV64K-IER8C3")
+		(lib_id "RF_NFC:ST25DV04K-IER8C3")
 		(at 125.73 133.35 0)
 		(unit 1)
 		(body_style 1)
@@ -9963,7 +9963,7 @@
 				)
 			)
 		)
-		(property "Value" "ST25DV64KC-IE8C3"
+		(property "Value" "ST25DV04K-IER6C3"
 			(at 136.525 139.7 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9984,7 +9984,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://www.st.com/resource/en/datasheet/st25dv64kc.pdf"
+		(property "Datasheet" "https://www.st.com/resource/en/datasheet/st25dv04k.pdf"
 			(at 125.73 133.35 0)
 			(hide yes)
 			(show_name no)
@@ -9995,7 +9995,7 @@
 				)
 			)
 		)
-		(property "Description" "64-Kbit dynamic NFC/RFID tag with 8192-byte EEPROM, 256-byte mailbox and energy harvesting, UFDFPN-8"
+		(property "Description" "4-Kbit dynamic NFC/RFID tag with 512-byte EEPROM, 256-byte mailbox and energy harvesting, UFDFPN-8"
 			(at 125.73 133.35 0)
 			(hide yes)
 			(show_name no)
@@ -10006,7 +10006,7 @@
 				)
 			)
 		)
-		(property "JLCPCB" "C5267462"
+		(property "JLCPCB" "C2908287"
 			(at 125.73 133.35 0)
 			(hide yes)
 			(show_name no)
@@ -10017,7 +10017,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C5267462"
+		(property "LCSC" "C2908287"
 			(at 125.73 133.35 0)
 			(hide yes)
 			(show_name no)
@@ -10028,7 +10028,7 @@
 				)
 			)
 		)
-		(property "MPN" "ST25DV64KC-IE8C3"
+		(property "MPN" "ST25DV04K-IER6C3"
 			(at 125.73 133.35 0)
 			(hide yes)
 			(show_name no)
@@ -10908,7 +10908,7 @@
 		)
 	)
 	(symbol
-		(lib_id "MCU_ST_STM32G0:STM32G031K6Tx")
+		(lib_id "MCU_ST_STM32G0:STM32G031K8Tx")
 		(at 44.45 115.57 0)
 		(unit 1)
 		(body_style 1)
@@ -10930,7 +10930,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "STM32G031K6Tx"
+		(property "Value" "STM32G031K8T6"
 			(at 46.5933 87.63 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10953,7 +10953,7 @@
 				(justify right)
 			)
 		)
-		(property "Datasheet" "https://www.st.com/resource/en/datasheet/stm32g031k6.pdf"
+		(property "Datasheet" "https://www.st.com/resource/en/datasheet/stm32g031k8.pdf"
 			(at 44.45 115.57 0)
 			(hide yes)
 			(show_name no)
@@ -10964,7 +10964,7 @@
 				)
 			)
 		)
-		(property "Description" "STMicroelectronics Arm Cortex-M0+ MCU, 32KB flash, 8KB RAM, 64 MHz, 1.7-3.6V, 30 GPIO, LQFP32"
+		(property "Description" "STMicroelectronics Arm Cortex-M0+ MCU, 64KB flash, 8KB RAM, 64 MHz, 1.7-3.6V, 30 GPIO, LQFP32"
 			(at 44.45 115.57 0)
 			(hide yes)
 			(show_name no)
@@ -10975,7 +10975,7 @@
 				)
 			)
 		)
-		(property "MPN" "STM32G031K6T6"
+		(property "MPN" "STM32G031K8T6"
 			(at 44.45 115.57 0)
 			(hide yes)
 			(show_name no)
@@ -10986,7 +10986,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C432202"
+		(property "LCSC" "C432203"
 			(at 44.45 115.57 0)
 			(hide yes)
 			(show_name no)
@@ -10997,7 +10997,7 @@
 				)
 			)
 		)
-		(property "JLCPCB" "C432202"
+		(property "JLCPCB" "C432203"
 			(at 44.45 115.57 0)
 			(hide yes)
 			(show_name no)

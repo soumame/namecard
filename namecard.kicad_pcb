@@ -11397,7 +11397,7 @@
 				)
 			)
 		)
-		(property "Value" "ST25DV64KC-IE8C3"
+		(property "Value" "ST25DV04K-IER6C3"
 			(at 0 2.05 90)
 			(layer "F.Fab")
 			(uuid "f6844585-dc3e-4e03-bb59-bfe4c2d4146a")
@@ -11434,7 +11434,7 @@
 				)
 			)
 		)
-		(property "JLCPCB" "C5267462"
+		(property "JLCPCB" "C2908287"
 			(at 0 0 270)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -11447,7 +11447,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C5267462"
+		(property "LCSC" "C2908287"
 			(at 0 0 270)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -11460,7 +11460,7 @@
 				)
 			)
 		)
-		(property "MPN" "ST25DV64KC-IE8C3"
+		(property "MPN" "ST25DV04K-IER6C3"
 			(at 0 0 270)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -11754,7 +11754,7 @@
 				)
 			)
 		)
-		(property "Value" "STM32G031K6Tx"
+		(property "Value" "STM32G031K8T6"
 			(at 0 5.88 0)
 			(layer "F.Fab")
 			(uuid "c5392254-e6e2-45b5-b057-9bf5e237f30b")
@@ -11789,7 +11789,7 @@
 				)
 			)
 		)
-		(property "JLCPCB" "C432202"
+		(property "JLCPCB" "C432203"
 			(at 0 0 0)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -11802,7 +11802,7 @@
 				)
 			)
 		)
-		(property "MPN" "STM32G031K6T6"
+		(property "MPN" "STM32G031K8T6"
 			(at 0 0 0)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -11815,7 +11815,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C432202"
+		(property "LCSC" "C432203"
 			(at 0 0 0)
 			(unlocked yes)
 			(layer "F.Fab")
