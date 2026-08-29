@@ -4,8 +4,12 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.nfc.NfcAdapter
+import android.nfc.NdefMessage
+import android.nfc.NdefRecord
 import android.nfc.Tag
 import android.nfc.TagLostException
+import android.nfc.tech.Ndef
+import android.nfc.tech.NdefFormatable
 import android.nfc.tech.NfcV
 import android.net.Uri
 import android.os.Build
@@ -59,6 +63,9 @@ class MainActivity : ComponentActivity() {
 
     @Volatile
     private var pendingMode = MODE_NONE
+
+    @Volatile
+    private var pendingUrl: String? = null
 
     @Volatile
     private var selectedPatternId = 1
@@ -124,6 +131,7 @@ class MainActivity : ComponentActivity() {
                     onSaveToLibrary = ::saveEditorToLibrary,
                     onExportEditor = ::exportEditor,
                     onWriteEditor = ::writeEditor,
+                    onWriteUrl = ::prepareUrlWrite,
                     onImportCard = {
                         libraryImportPicker.launch(arrayOf("application/octet-stream"))
                     },
@@ -149,8 +157,10 @@ class MainActivity : ComponentActivity() {
                             screenState = screenState.copy(writeProgress = null)
                         } else if (progress.canCancel && !running.get()) {
                             pendingMode = MODE_NONE
+                            pendingUrl = null
                             imageTransferSession = null
                             screenState = screenState.copy(writeProgress = null)
+                            refreshReaderMode()
                             log("NFC書き込みをキャンセルしました。\n")
                         }
                     },
@@ -222,6 +232,27 @@ class MainActivity : ComponentActivity() {
         screenState = screenState.copy(
             editorMessage = "書き込み準備完了。名刺へタッチして動かさないでください。",
         )
+    }
+
+    private fun prepareUrlWrite(url: String) {
+        val normalized = validateUrlInput(url).normalizedUrl
+        if (normalized == null) {
+            screenState = screenState.copy(editorMessage = "URLの形式を確認してください。")
+            return
+        }
+        imageTransferSession = null
+        pendingUrl = normalized
+        pendingMode = MODE_URL
+        screenState = screenState.copy(
+            editorMessage = "URL書き込み準備完了。名刺へタッチして動かさないでください。",
+            writeProgress = WriteProgressState(
+                title = "URL設定",
+                detail = "URLを書き込む名刺へタッチしてください。",
+                antennaGuide = antennaGuide,
+            ),
+        )
+        refreshReaderMode()
+        log("URL書き込みを選択: $normalized\n名刺にタッチしてください。\n")
     }
 
     private fun importLibraryCard(uri: Uri) {
@@ -417,25 +448,52 @@ class MainActivity : ComponentActivity() {
         val options = Bundle().apply {
             putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 120_000)
         }
+        val flags = NfcAdapter.FLAG_READER_NFC_V or
+            if (pendingMode == MODE_URL) 0 else NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK
         nfcAdapter.enableReaderMode(
             this,
             ::handleTag,
-            NfcAdapter.FLAG_READER_NFC_V or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
+            flags,
             options,
         )
     }
 
-    private fun restartReaderModeAfterLoss() {
+    private fun refreshReaderMode() {
+        ui.post {
+            if (!readerModeActive || isFinishing || isDestroyed) return@post
+            enableReaderMode()
+        }
+    }
+
+    private fun restartReaderModeAfterLoss(tag: Tag) {
         ui.post {
             val nfcAdapter = adapter ?: return@post
             if (!readerModeActive || isFinishing || isDestroyed) return@post
-            nfcAdapter.disableReaderMode(this)
-            ui.postDelayed({
-                if (!readerModeActive || isFinishing || isDestroyed) return@postDelayed
-                enableReaderMode()
-                log("NFC探索を再開しました。そのまま位置を合わせてください。\n")
-            }, READER_RESTART_DELAY_MS)
+
+            // Keep Reader Mode active while discarding the stale Tag handle.
+            // Disabling it here, even briefly, lets Android's normal NDEF
+            // dispatch open the URL if the card re-enters the field meanwhile.
+            val waitingForRemoval = runCatching {
+                nfcAdapter.ignore(
+                    tag,
+                    TAG_REMOVAL_DEBOUNCE_MS,
+                    { onTagRemovedAfterLoss() },
+                    ui,
+                )
+            }.getOrDefault(false)
+            if (waitingForRemoval) {
+                log("古いNFC接続を破棄しました。名刺を一度完全に離してください。\n")
+            } else {
+                // TagLost can arrive after Android has already observed the
+                // removal. Reader Mode is still active, so no reset is needed.
+                onTagRemovedAfterLoss()
+            }
         }
+    }
+
+    private fun onTagRemovedAfterLoss() {
+        if (!readerModeActive || isFinishing || isDestroyed) return
+        log("NFC探索を継続しています。名刺へもう一度タッチしてください。\n")
     }
 
     private fun handleTag(tag: Tag?) {
@@ -446,15 +504,20 @@ class MainActivity : ComponentActivity() {
             return
         }
         val selectedImage = image
-        if ((mode == MODE_IMAGE && selectedImage == null) || !running.compareAndSet(false, true)) {
+        val selectedUrl = pendingUrl
+        if (
+            (mode == MODE_IMAGE && selectedImage == null) ||
+            (mode == MODE_URL && selectedUrl == null) ||
+            !running.compareAndSet(false, true)
+        ) {
             return
         }
         log(
             "NFC-V検出 UID=${tag.id.toHex()}" +
-                if (mode == MODE_STATUS) {
-                    "。MCU起動を待ちます。\n"
-                } else {
-                    "。MCU起動・VRES充電を待ちます。\n"
+                when (mode) {
+                    MODE_STATUS -> "。MCU起動を待ちます。\n"
+                    MODE_URL -> "。URL書き込みを準備します。\n"
+                    else -> "。MCU起動・VRES充電を待ちます。\n"
                 },
         )
         if (mode == MODE_IMAGE) {
@@ -465,13 +528,21 @@ class MainActivity : ComponentActivity() {
                 status = "NFCタグを検出しました",
                 detail = "接続を確立し、名刺側の状態を確認しています。",
             )
+        } else if (mode == MODE_URL) {
+            showUrlWriteProgressIfNeeded()
+            updateWriteProgress(
+                progress = 0.08f,
+                currentStep = 1,
+                status = "NFCタグを検出しました",
+                detail = "画像転送を停止し、URL書き込みを準備しています。",
+            )
         }
         val transferImage = if (mode == MODE_IMAGE) selectedImage?.copyOf() else null
         val transferImageFormat = imageFormat
         val patternId = selectedPatternId
         setControlsEnabled(false)
         transferScope.launch {
-            transfer(tag, mode, transferImage, transferImageFormat, patternId)
+            transfer(tag, mode, transferImage, transferImageFormat, patternId, selectedUrl)
         }
     }
 
@@ -481,6 +552,7 @@ class MainActivity : ComponentActivity() {
         transferImage: ByteArray?,
         transferImageFormat: Int,
         patternId: Int,
+        url: String?,
     ) {
         val nfc = NfcV.get(tag)
         var stage = "NFC接続"
@@ -491,6 +563,21 @@ class MainActivity : ComponentActivity() {
             checkNotNull(nfc) { "NFC-Vタグではありません" }
             activeNfc = nfc
             nfc.connect()
+            if (mode == MODE_URL) {
+                stage = "URL書き込み"
+                runUrlWrite(tag, nfc, requireNotNull(url)) { nextStage ->
+                    stage = nextStage
+                }
+                pendingUrl = null
+                pendingMode = MODE_NONE
+                completeWriteProgress("URLを書き込み、読み返して確認しました。")
+                ui.post {
+                    screenState = screenState.copy(editorMessage = "URLを書き込みました。")
+                }
+                refreshReaderMode()
+                log("URLの書き込みと読み返し確認が完了しました。\n")
+                return
+            }
             if (mode == MODE_IMAGE) {
                 updateWriteProgress(
                     progress = 0.07f,
@@ -1006,6 +1093,11 @@ class MainActivity : ComponentActivity() {
                     status = "名刺を見失いました",
                     detail = "${transferredBytes} / ${activeSession?.image?.size ?: IMAGE_SIZE} bytesまで保持しています。位置を合わせて再タッチしてください。",
                 )
+            } else if (mode == MODE_URL) {
+                interruptWriteProgress(
+                    status = "名刺を見失いました",
+                    detail = "URL書き込みを完了できませんでした。一度離してから再タッチしてください。",
+                )
             }
             restartReader = true
         } catch (error: IOException) {
@@ -1023,6 +1115,11 @@ class MainActivity : ComponentActivity() {
                     status = "NFC通信が中断しました",
                     detail = "進捗は保持されています。位置を合わせて再タッチしてください。",
                 )
+            } else if (mode == MODE_URL) {
+                interruptWriteProgress(
+                    status = "NFC通信が中断しました",
+                    detail = "URL書き込みを完了できませんでした。一度離してから再タッチしてください。",
+                )
             }
             restartReader = true
         } catch (error: CancellationException) {
@@ -1032,6 +1129,7 @@ class MainActivity : ComponentActivity() {
                 "失敗: $stage: ${error.message}" +
                     when (mode) {
                         MODE_IMAGE -> "\n画像の進捗を保持しました。そのまま再タッチしてください。\n"
+                        MODE_URL -> "\nURL設定を中止しました。内容を確認してやり直してください。\n"
                         MODE_PATTERN_SEQUENCE ->
                             "\n次のパターン番号を保持しました。位置を合わせてそのまま再タッチしてください。\n"
                         else -> "\nもう一度試験を選んでタッチしてください。\n"
@@ -1042,6 +1140,14 @@ class MainActivity : ComponentActivity() {
                     status = "書き込みを完了できませんでした",
                     detail = "${error.message ?: "進捗は保持されています"}。位置を合わせて再タッチしてください。",
                 )
+            } else if (mode == MODE_URL) {
+                pendingMode = MODE_NONE
+                pendingUrl = null
+                interruptWriteProgress(
+                    status = "URLを書き込めませんでした",
+                    detail = error.message ?: "名刺側FWとURLを確認してください。",
+                )
+                refreshReaderMode()
             }
             restartReader = mode == MODE_PATTERN_SEQUENCE
         } finally {
@@ -1050,7 +1156,129 @@ class MainActivity : ComponentActivity() {
             running.set(false)
             setControlsEnabled(true)
         }
-        if (restartReader) restartReaderModeAfterLoss()
+        if (restartReader) restartReaderModeAfterLoss(tag)
+    }
+
+    private suspend fun runUrlWrite(
+        tag: Tag,
+        initialNfc: NfcV,
+        url: String,
+        setStage: (String) -> Unit,
+    ) {
+        val message = NdefMessage(arrayOf(NdefRecord.createUri(url)))
+        val expected = message.toByteArray()
+        require(expected.size <= MAX_URL_NDEF_BYTES) {
+            "URLが長すぎます。短いURLを使用してください"
+        }
+
+        var mailboxPaused = false
+        try {
+            setStage("名刺側FWのURL書き込み準備")
+            updateWriteProgress(
+                progress = 0.18f,
+                currentStep = 1,
+                status = "URL書き込みを準備中",
+                detail = "画像転送用Mailboxを安全に停止しています。",
+            )
+            delay(BOOT_QUIET_MS)
+            val mailbox = St25Mailbox(initialNfc, tag.id)
+            mailbox.enable()
+            val transferId = (System.currentTimeMillis() and 0xffff).toInt()
+            val ack = mailbox.exchange(
+                NamecardProtocol.frame(
+                    TYPE_NDEF_WRITE_PREPARE,
+                    transferId,
+                    0,
+                    0,
+                    byteArrayOf(),
+                ),
+            )
+            check(ack.error != ERROR_COMMAND) {
+                "名刺側FWがURL書き込みに未対応です。先にFWを更新してください"
+            }
+            ack.requireSuccess()
+            mailbox.disable()
+            mailboxPaused = true
+            initialNfc.close()
+            if (activeNfc === initialNfc) activeNfc = null
+
+            setStage("NDEF URL書き込み")
+            updateWriteProgress(
+                progress = 0.48f,
+                currentStep = 2,
+                status = "URLを書き込み中",
+                detail = "完了するまで名刺を動かさないでください。",
+            )
+            writeNdefMessage(tag, message)
+
+            setStage("NDEF読み返し確認")
+            updateWriteProgress(
+                progress = 0.82f,
+                currentStep = 3,
+                status = "URLを確認中",
+                detail = "書き込んだ内容を読み返しています。",
+            )
+            val verifyNfc = checkNotNull(NfcV.get(tag)) { "NFC-Vタグではありません" }
+            activeNfc = verifyNfc
+            try {
+                verifyNfc.connect()
+                val verifier = St25Mailbox(verifyNfc, tag.id)
+                val actual = verifier.readNdefMessage(expected.size)
+                check(actual.contentEquals(expected)) {
+                    "URLの読み返し内容が一致しません"
+                }
+                verifier.enable()
+                mailboxPaused = false
+            } finally {
+                verifyNfc.runCatching { close() }
+                if (activeNfc === verifyNfc) activeNfc = null
+            }
+        } finally {
+            if (mailboxPaused && tryResumeMailbox(tag)) {
+                log("URL処理後にMailboxを再開しました。\n")
+            }
+        }
+    }
+
+    private fun writeNdefMessage(tag: Tag, message: NdefMessage) {
+        val ndef = Ndef.get(tag)
+        if (ndef != null) {
+            try {
+                ndef.connect()
+                check(ndef.isWritable) { "この名刺のURL領域は書き込み禁止です" }
+                check(message.toByteArray().size <= ndef.maxSize) {
+                    "URLが名刺のNDEF容量を超えています"
+                }
+                ndef.writeNdefMessage(message)
+            } finally {
+                ndef.runCatching { close() }
+            }
+            return
+        }
+
+        val formatable = NdefFormatable.get(tag)
+            ?: error("この端末では未フォーマットの名刺をNDEF化できません")
+        try {
+            formatable.connect()
+            formatable.format(message)
+        } finally {
+            formatable.runCatching { close() }
+        }
+    }
+
+    private suspend fun tryResumeMailbox(tag: Tag): Boolean {
+        val nfc = NfcV.get(tag) ?: return false
+        return try {
+            activeNfc = nfc
+            nfc.connect()
+            St25Mailbox(nfc, tag.id).enable()
+            true
+        } catch (_: Exception) {
+            false
+        } finally {
+            nfc.runCatching { close() }
+            if (activeNfc === nfc) activeNfc = null
+        }
     }
 
     private suspend fun runPatternUpdate(mailbox: St25Mailbox, patternId: Int) {
@@ -1126,6 +1354,20 @@ class MainActivity : ComponentActivity() {
                 screenState = screenState.copy(
                     writeProgress = WriteProgressState(
                         title = imageName,
+                        antennaGuide = antennaGuide,
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun showUrlWriteProgressIfNeeded() {
+        ui.post {
+            if (screenState.writeProgress == null) {
+                screenState = screenState.copy(
+                    writeProgress = WriteProgressState(
+                        title = "URL設定",
+                        detail = "URLを書き込む名刺へタッチしてください。",
                         antennaGuide = antennaGuide,
                     ),
                 )
@@ -1293,6 +1535,10 @@ class MainActivity : ComponentActivity() {
         const val MODE_PATTERN = 2
         const val MODE_IMAGE = 3
         const val MODE_PATTERN_SEQUENCE = 4
+        const val MODE_URL = 5
+        const val TYPE_NDEF_WRITE_PREPARE = 7
+        const val ERROR_COMMAND = 6
+        const val MAX_URL_NDEF_BYTES = 480
         const val PATTERN_COUNT = 10
         const val BATCH_STATUS_TIMEOUT_MS = 3_500L
         const val BOOT_QUIET_MS = 1_500L
@@ -1302,7 +1548,7 @@ class MainActivity : ComponentActivity() {
         const val FRAME_GAP_WEAK_MS = 500L
         const val VDD_STRONG_MV = 3_200
         const val VDD_NORMAL_MV = 3_050
-        const val READER_RESTART_DELAY_MS = 300L
+        const val TAG_REMOVAL_DEBOUNCE_MS = 250
         const val PROGRESS_UPDATE_INTERVAL_MS = 1_000L
         const val MAX_DECODE_SIDE = 2048
 

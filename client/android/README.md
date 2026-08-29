@@ -57,6 +57,53 @@ Libraryは完成画像のネイティブBINと名称・送信方式をアプリ�
 上部の`インポート`は4,736-byteをドット密度、9,472-byteを4階調として自動判定する。
 Libraryは完成画像を保存する機能であり、テキストや画像の編集レイヤーまでは保持しない。
 
+## 配布用APK
+
+`main`ブランチへAndroid関連の変更をpushすると、GitHub Actionsが単体テストとLintを
+実行し、release署名済みAPKをビルドする。成功したAPKは次の固定URLで公開する。
+
+https://github.com/soumame/namecard/releases/download/android-main/namecard.apk
+
+初回実行前に、更新時にも継続して使用するrelease署名鍵を用意する。鍵を失うと、すでに
+インストールされたアプリを上書き更新できない。鍵ファイルとパスワードはリポジトリへ
+commitせず、それぞれ安全な場所へバックアップする。
+
+```sh
+keytool -genkeypair -v \
+  -keystore namecard-release.jks \
+  -storetype JKS \
+  -alias namecard \
+  -keyalg RSA \
+  -keysize 4096 \
+  -validity 10000
+```
+
+リポジトリの`Settings` → `Secrets and variables` → `Actions`へ、次のRepository
+secretsを登録する。
+
+- `ANDROID_RELEASE_KEYSTORE_BASE64`: `namecard-release.jks`をBase64化した内容
+- `ANDROID_RELEASE_STORE_PASSWORD`: keystoreのパスワード
+- `ANDROID_RELEASE_KEY_ALIAS`: 上の例では`namecard`
+- `ANDROID_RELEASE_KEY_PASSWORD`: 鍵のパスワード
+
+macOSとGitHub CLIを使う場合、keystoreは次のコマンドで登録できる。残り3つは
+`gh secret set シークレット名`を実行し、表示される入力欄へ値を貼り付ける。
+
+```sh
+base64 < namecard-release.jks | gh secret set ANDROID_RELEASE_KEYSTORE_BASE64
+gh secret set ANDROID_RELEASE_STORE_PASSWORD
+gh secret set ANDROID_RELEASE_KEY_ALIAS
+gh secret set ANDROID_RELEASE_KEY_PASSWORD
+```
+
+workflowはCI用`versionCode`として`100000 + GitHub run number`を設定する。テストまたは
+Lintが失敗した場合、公開中のAPKは置き換えない。手動で再実行するときはActionsの
+`Android release`から`Run workflow`を選ぶ。
+
+販売物のQRコードは、インストール説明を確認できる次のURLへ向ける。
+
+https://github.com/soumame/namecard
+
 CLIでは同梱のGradle Wrapperを使う。Android SDKは`ANDROID_HOME`、またはgit管理外の
 `local.properties`に設定する。初回だけWrapperが検証済みGradle 8.13を取得する。
 ComposeのコンパイルとLintに必要なGradleヒープは`gradle.properties`で2GiBに設定する。
@@ -76,7 +123,7 @@ VS Codeからは`Android: Build NFC test client`、USBデバッグ接続後は
 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`は、端末内の旧APKと新APKのデバッグ署名が
 異なる場合に発生する。VS Codeの
 `Android: Clean install NFC test client (signature reset)`を一度だけ実行する。
-このタスクは`jp.namecard.nfctest`の旧版とアプリデータを削除してから再インストール
+このタスクは`work.tokumaru.namecard`の旧版とアプリデータを削除してから再インストール
 する。以後、同じデバッグ鍵を使う限り通常の`Android: Install NFC test client`で
 上書きできる。
 

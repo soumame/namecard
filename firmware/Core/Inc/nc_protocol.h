@@ -39,6 +39,7 @@ typedef enum {
     NC_TYPE_STATUS = 0x04,
     NC_TYPE_EXECUTE = 0x05,
     NC_TYPE_PATTERN = 0x06,
+    NC_TYPE_NDEF_WRITE_PREPARE = 0x07,
     NC_TYPE_ACK = 0x80,
     NC_TYPE_ERROR = 0x81
 } nc_frame_type_t;

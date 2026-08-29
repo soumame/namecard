@@ -4,16 +4,50 @@ plugins {
     id "org.jetbrains.kotlin.plugin.compose"
 }
 
+def releaseKeystorePath = System.getenv("NAMECARD_KEYSTORE_FILE")
+def releaseStorePassword = System.getenv("NAMECARD_KEYSTORE_PASSWORD")
+def releaseKeyAlias = System.getenv("NAMECARD_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("NAMECARD_KEY_PASSWORD")
+def releaseSigningValues = [
+    releaseKeystorePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+]
+def releaseSigningConfigured = releaseSigningValues.every { it != null && !it.isBlank() }
+
+if (releaseSigningValues.any { it != null && !it.isBlank() } && !releaseSigningConfigured) {
+    throw new GradleException("Release signing requires all NAMECARD_KEYSTORE_* and NAMECARD_KEY_* variables")
+}
+
 android {
     namespace = "jp.namecard.nfctest"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "jp.namecard.nfctest"
+        applicationId = "work.tokumaru.namecard"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.16"
+        versionCode = (System.getenv("NAMECARD_VERSION_CODE") ?: "17").toInteger()
+        versionName = System.getenv("NAMECARD_VERSION_NAME") ?: "0.17"
+    }
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile = file(releaseKeystorePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.release
+            }
+            minifyEnabled = false
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

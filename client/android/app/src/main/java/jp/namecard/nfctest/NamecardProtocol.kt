@@ -136,6 +136,36 @@ internal class St25Mailbox(
         check(readControl() and 0x01 != 0) { "MB_ENを書き込めませんでした" }
     }
 
+    suspend fun disable() {
+        val control = try {
+            readControl()
+        } catch (error: St25CommandException) {
+            if (error.errorCode == 0x10) return
+            throw error
+        }
+        if (control and 0x01 == 0) return
+        command(0xae, byteArrayOf(0x0d, 0x00))
+        check(readControl() and 0x01 == 0) { "MB_ENを解除できませんでした" }
+    }
+
+    fun readNdefMessage(expectedLength: Int): ByteArray {
+        require(expectedLength in 1..MAX_VERIFIABLE_NDEF_BYTES) {
+            "URLが長すぎて読み返し確認できません"
+        }
+        val firstBlock = readUserBlock(0)
+        val ccSize = if (firstBlock[2].toInt() and 0xff == 0) 8 else 4
+        val requiredBytes = ccSize + expectedLength + MAX_TLV_OVERHEAD
+        val blockCount = (requiredBytes + USER_BLOCK_SIZE - 1) / USER_BLOCK_SIZE
+        check(blockCount <= MAX_STANDARD_BLOCK_COUNT) { "NDEF確認範囲が大きすぎます" }
+        val memory = ByteArray(blockCount * USER_BLOCK_SIZE)
+        firstBlock.copyInto(memory)
+        for (block in 1 until blockCount) {
+            readUserBlock(block).copyInto(memory, destinationOffset = block * USER_BLOCK_SIZE)
+        }
+        return extractType5NdefMessage(memory)
+            ?: throw NfcSessionException("書き込んだNDEFを読み返せませんでした")
+    }
+
     suspend fun exchange(message: ByteArray, ackTimeoutMs: Long = 1_500L): Ack {
         val startedAt = SystemClock.elapsedRealtime()
         waitMailboxFree(1_000L)
@@ -219,6 +249,27 @@ internal class St25Mailbox(
         return response.copyOfRange(1, response.size)
     }
 
+    private fun readUserBlock(block: Int): ByteArray {
+        require(block in 0 until MAX_STANDARD_BLOCK_COUNT)
+        val request = ByteArray(2 + uid.size + 1).apply {
+            this[0] = FLAGS.toByte()
+            this[1] = ISO_READ_SINGLE_BLOCK.toByte()
+            uid.copyInto(this, destinationOffset = 2)
+            this[lastIndex] = block.toByte()
+        }
+        val response = nfc.transceive(request)
+        if (response.isEmpty()) throw NfcSessionException("empty NFC response")
+        if (response[0].toInt() and 0x01 != 0) {
+            val error = response.getOrNull(1)?.toInt()?.and(0xff) ?: -1
+            throw St25CommandException(ISO_READ_SINGLE_BLOCK, error)
+        }
+        val data = response.copyOfRange(1, response.size)
+        if (data.size != USER_BLOCK_SIZE) {
+            throw NfcSessionException("NFC-V block length mismatch: ${data.size}")
+        }
+        return data
+    }
+
     private fun explainMailboxError(error: St25CommandException): Exception =
         if (error.errorCode == 0x10) {
             IllegalStateException(
@@ -235,6 +286,11 @@ internal class St25Mailbox(
         const val ACK_FRAME_SIZE = 32
         const val ACK_SETTLE_MS = 50L
         const val ACK_POLL_MS = 15L
+        const val ISO_READ_SINGLE_BLOCK = 0x20
+        const val USER_BLOCK_SIZE = 4
+        const val MAX_STANDARD_BLOCK_COUNT = 128
+        const val MAX_VERIFIABLE_NDEF_BYTES = 480
+        const val MAX_TLV_OVERHEAD = 4
     }
 }
 

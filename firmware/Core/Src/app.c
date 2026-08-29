@@ -52,6 +52,8 @@ static uint32_t stable_started_at;
 static uint32_t last_power_sample_at;
 #if !NAMECARD_NFC_FIXED_TEST
 static uint32_t last_mailbox_poll_at;
+static bool ndef_write_pause_requested;
+static bool ndef_write_paused;
 #endif
 static uint32_t execute_ack_started_at;
 static uint32_t execute_ack_read_at;
@@ -204,6 +206,26 @@ static void handle_message(void)
         (void)st25dv_read_eh_control(&eh_control);
         (void)send_reply(&frame, status_reply(),
                          current_state == APP_STATE_REFRESHING ? CLIENT_RF_QUIET_MS : 0U);
+        return;
+    }
+
+    if (frame.type == NC_TYPE_NDEF_WRITE_PREPARE) {
+        if ((frame.sequence != 0U) || (frame.offset != 0U) ||
+            (frame.payload_length != 0U) ||
+            (current_state == APP_STATE_REFRESHING) ||
+            (current_state == APP_STATE_EXECUTE_ACK)) {
+            (void)send_reply(&frame, rejected(NC_ERROR_COMMAND), 0U);
+            return;
+        }
+        current_error = NC_ERROR_NONE;
+        if (send_reply(&frame, status_reply(), 0U)) {
+            /* The phone disables MB_EN after reading this ACK. Suppress the
+               normal 100 ms auto-enable loop until it explicitly enables the
+               mailbox again after the EEPROM/NDEF write. */
+            ndef_write_pause_requested = true;
+        } else {
+            current_error = NC_ERROR_NFC_IO;
+        }
         return;
     }
 
@@ -789,6 +811,8 @@ void app_init(void)
     current_state = APP_STATE_CHARGING;
     charge_started_at = HAL_GetTick();
 #else
+    ndef_write_pause_requested = false;
+    ndef_write_paused = false;
     mailbox_enabled = (st25dv_probe() == ST25DV_OK) &&
                       (st25dv_enable_mailbox() == ST25DV_OK);
     (void)st25dv_read_eh_control(&eh_control);
@@ -871,6 +895,31 @@ void app_process(void)
     const bool nfc_gpo_edge = board_take_nfc_gpo_edge();
 #endif
 #if !NAMECARD_NFC_FIXED_TEST
+    if (ndef_write_pause_requested) {
+        uint8_t mailbox_control = 0U;
+        if ((st25dv_read_mailbox_control(&mailbox_control) == ST25DV_OK) &&
+            (((mailbox_control & ST25DV_MB_CTRL_HOST_PUT_MSG) == 0U) ||
+             ((mailbox_control & ST25DV_MB_CTRL_MB_EN) == 0U)) &&
+            (st25dv_disable_mailbox() == ST25DV_OK)) {
+            mailbox_enabled = false;
+            ndef_write_pause_requested = false;
+            ndef_write_paused = true;
+            last_mailbox_poll_at = now;
+        }
+    }
+    if (ndef_write_paused && ((now - last_mailbox_poll_at) >= 100U)) {
+        uint8_t mailbox_control = 0U;
+        last_mailbox_poll_at = now;
+        if ((st25dv_read_mailbox_control(&mailbox_control) == ST25DV_OK) &&
+            ((mailbox_control & ST25DV_MB_CTRL_MB_EN) != 0U)) {
+            mailbox_enabled = true;
+            ndef_write_paused = false;
+        }
+    }
+    if (ndef_write_paused || ndef_write_pause_requested) {
+        __WFI();
+        return;
+    }
     if (!mailbox_enabled && ((now - last_mailbox_poll_at) >= 100U)) {
         last_mailbox_poll_at = now;
         mailbox_enabled = st25dv_enable_mailbox() == ST25DV_OK;

@@ -89,14 +89,17 @@ internal fun EditorScreen(
     onSaveToLibrary: (String) -> Unit,
     onExportBin: () -> Unit,
     onWrite: () -> Unit,
+    onWriteUrl: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showFormatDialog by remember { mutableStateOf(false) }
     var showFileMenu by remember { mutableStateOf(false) }
     var showTextDialog by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
+    var showUrlDialog by remember { mutableStateOf(false) }
     var textInput by remember { mutableStateOf("") }
     var cardName by remember { mutableStateOf("") }
+    var urlInput by remember { mutableStateOf("") }
     val viewportState = remember { EditorViewportState() }
     val selectionRevision = canvasState.revision
     val hasSelection = remember(selectionRevision) { canvasState.hasSelection }
@@ -326,6 +329,12 @@ internal fun EditorScreen(
                         onClick = { showTextDialog = true },
                     )
                     EditorToolButton(
+                        label = "URL",
+                        iconRes = R.drawable.ic_link,
+                        enabled = state.controlsEnabled,
+                        onClick = { showUrlDialog = true },
+                    )
+                    EditorToolButton(
                         label = "背面へ",
                         iconRes = R.drawable.ic_flip_to_back,
                         enabled = state.controlsEnabled && hasSelection,
@@ -456,6 +465,54 @@ internal fun EditorScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showSaveDialog = false }) { Text("キャンセル") }
+            },
+        )
+    }
+
+    if (showUrlDialog) {
+        val validation = validateUrlInput(urlInput)
+        AlertDialog(
+            onDismissRequest = { showUrlDialog = false },
+            title = { Text("URLを設定") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "名刺を通常どおりタッチしたときに開くURLを書き込みます。",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    OutlinedTextField(
+                        value = urlInput,
+                        onValueChange = { urlInput = it },
+                        label = { Text("URL") },
+                        placeholder = { Text("https://example.com") },
+                        singleLine = true,
+                        isError = urlInput.isNotBlank() && !validation.isValid,
+                        supportingText = if (urlInput.isNotBlank() && !validation.isValid) {
+                            { Text(validation.error.orEmpty()) }
+                        } else {
+                            null
+                        },
+                    )
+                    Text(
+                        "http:// または https:// がない場合は、自動的に https:// を付けます。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onWriteUrl(requireNotNull(validation.normalizedUrl))
+                        showUrlDialog = false
+                    },
+                    enabled = validation.isValid,
+                ) {
+                    Text("カードに書き込む")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUrlDialog = false }) { Text("キャンセル") }
             },
         )
     }
@@ -690,6 +747,7 @@ private fun EditorScreenPreview() {
                 onSaveToLibrary = {},
                 onExportBin = {},
                 onWrite = {},
+                onWriteUrl = {},
                 modifier = Modifier.padding(innerPadding),
             )
         }

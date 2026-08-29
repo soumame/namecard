@@ -26,6 +26,7 @@ st25dv_result_t st25dv_probe(void);
  * password is intentionally left unchanged for developer access. */
 st25dv_result_t st25dv_factory_enable_eh_at_boot(void);
 st25dv_result_t st25dv_enable_mailbox(void);
+st25dv_result_t st25dv_disable_mailbox(void);
 st25dv_result_t st25dv_read_mailbox_control(uint8_t *control);
 st25dv_result_t st25dv_read_eh_control(uint8_t *control);
 st25dv_result_t st25dv_read_rf_message(uint8_t message[NC_FRAME_MAX_SIZE],

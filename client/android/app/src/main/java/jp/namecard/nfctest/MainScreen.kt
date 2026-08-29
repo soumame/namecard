@@ -78,6 +78,7 @@ internal fun MainScreen(
     onSaveToLibrary: (String) -> Unit,
     onExportEditor: () -> Unit,
     onWriteEditor: () -> Unit,
+    onWriteUrl: (String) -> Unit,
     onImportCard: () -> Unit,
     onWriteCard: (LibraryCard) -> Unit,
     onEditCard: (LibraryCard) -> Unit,
@@ -133,6 +134,7 @@ internal fun MainScreen(
                 onSaveToLibrary = onSaveToLibrary,
                 onExportBin = onExportEditor,
                 onWrite = onWriteEditor,
+                onWriteUrl = onWriteUrl,
                 modifier = Modifier.padding(innerPadding),
             )
 
@@ -431,6 +433,7 @@ private fun PreviewMainScreen(selectedTab: AppTab) {
             onSaveToLibrary = {},
             onExportEditor = {},
             onWriteEditor = {},
+            onWriteUrl = {},
             onImportCard = {},
             onWriteCard = {},
             onEditCard = {},

@@ -3,7 +3,7 @@
   "configurePresets": [
     {
       "name": "release",
-      "displayName": "STM32G031K6 v4 release",
+      "displayName": "STM32G031K8 release",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/release",
       "toolchainFile": "${sourceDir}/cmake/arm-none-eabi-gcc.cmake",

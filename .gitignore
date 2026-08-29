@@ -57,5 +57,7 @@ client/android/.kotlin/
 client/android/app/build/
 client/android/build/
 client/android/local.properties
+*.jks
+*.keystore
 firmware/.cache/
 firmware/compile_commands.json

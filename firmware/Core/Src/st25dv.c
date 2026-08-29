@@ -163,6 +163,12 @@ st25dv_result_t st25dv_enable_mailbox(void)
     return write_register(ST25DV_MB_CTRL_DYN, &enable, 1U);
 }
 
+st25dv_result_t st25dv_disable_mailbox(void)
+{
+    const uint8_t disable = 0U;
+    return write_register(ST25DV_MB_CTRL_DYN, &disable, 1U);
+}
+
 st25dv_result_t st25dv_read_rf_message(uint8_t message[NC_FRAME_MAX_SIZE],
                                       uint16_t *length)
 {

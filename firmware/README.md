@@ -1,6 +1,6 @@
 # Namecard NFC / EPD validation firmware
 
-namecard v4（STM32G031K6、ST25DVxxKC、GDEY029T94/SSD1680）用の
+namecard量産版（STM32G031K8、ST25DV04K、GDEY029T94/SSD1680）用の
 立上げ・発注可否判断FW。次の段階を別ビルドで検証する。
 
 1. `release`（EPD未接続）: MCU、自己保持、I²C、NFC Mailboxの基板単体確認
@@ -56,7 +56,7 @@ cmake --build --preset nfc-fixed-one-shot
 
 生成物は各`build/<preset>/namecard_fw.{elf,hex,bin}`。リンカが次を強制する。
 
-- アプリFlash 20KiB以下（末尾12KiBは表示画像2スロット）
+- アプリFlash 52KiB以下（末尾12KiBは表示画像2スロット）
 - 静的RAM 7KiB以下
 - ヒープ0、スタック予約1KiB以上
 
@@ -114,8 +114,8 @@ python3 firmware/tools/namecard_protocol.py make-image \
 
 ## Small-MCU product path
 
-STM32G031K6のRAMには4,736-byteプレーンを1枚だけ保持し、文字描画はスマホ側で行う。
-Flash先頭20KiBをFW、末尾12KiBをCRC付き6KiB×2スロットとして分離した。新画像は
+STM32G031K8のRAMには4,736-byteプレーンを1枚だけ保持し、文字描画はスマホ側で行う。
+Flash先頭52KiBをFW、末尾12KiBをCRC付き6KiB×2スロットとして分離した。新画像は
 EPD更新前に空きスロットへPREPARED保存し、BUSY完了後に別の64-bit COMMITTED
 マーカーだけを書き込む。電源断後も旧画像と更新待ち画像を判別でき、ST25DV EEPROMの
 容量には依存しない。詳細は [製品設計](docs/PRODUCT_DESIGN.md) を参照。

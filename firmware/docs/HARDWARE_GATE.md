@@ -36,7 +36,7 @@ ST-LinkのVTrefは同じ3.3Vへ接続し、別の3.3V出力を並列接続しな
 1. `FW: Provision BOR3 (2.5V falling)`を一度だけ実行する。
 2. `FW: Flash release`を書き込む。
 3. TP8/SYS_VDDが約3.3V、TP6/EPD_SWがほぼ0Vであることを確認する。
-4. STM32CubeProgrammerがSTM32G031K6を認識することを確認する。
+4. STM32CubeProgrammerがSTM32G031K8を認識することを確認する。
 
 PA0/PWR_HOLDはReset Handler後、HAL初期化より前からHighになる。PVD4下降検出時は
 PA6をLow、EPDバスをAnalog、PA0をLowへ切り替える。BOR3はそれより低い電圧での

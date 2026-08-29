@@ -1,0 +1,124 @@
+name: Android release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "client/android/**"
+      - ".github/workflows/android-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-main-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client/android
+    env:
+      ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+      NAMECARD_KEYSTORE_FILE: ${{ runner.temp }}/namecard-release.jks
+      NAMECARD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+      NAMECARD_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+      NAMECARD_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check signing secrets
+        shell: bash
+        run: |
+          missing=0
+          if [ -z "$ANDROID_RELEASE_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_RELEASE_KEYSTORE_BASE64 is not configured"
+            missing=1
+          fi
+          if [ -z "$NAMECARD_KEYSTORE_PASSWORD" ]; then
+            echo "::error::ANDROID_RELEASE_STORE_PASSWORD is not configured"
+            missing=1
+          fi
+          if [ -z "$NAMECARD_KEY_ALIAS" ]; then
+            echo "::error::ANDROID_RELEASE_KEY_ALIAS is not configured"
+            missing=1
+          fi
+          if [ -z "$NAMECARD_KEY_PASSWORD" ]; then
+            echo "::error::ANDROID_RELEASE_KEY_PASSWORD is not configured"
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Prepare release identity
+        shell: bash
+        run: |
+          printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$NAMECARD_KEYSTORE_FILE"
+          echo "NAMECARD_VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "NAMECARD_VERSION_NAME=main.${GITHUB_RUN_NUMBER}+${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Test and build signed APK
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
+
+      - name: Prepare release files
+        shell: bash
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/namecard.apk"
+          cd "$RUNNER_TEMP"
+          sha256sum namecard.apk > namecard.apk.sha256
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: namecard-android-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/namecard.apk
+            ${{ runner.temp }}/namecard.apk.sha256
+
+      - name: Publish latest APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_tag="android-main"
+          release_title="Namecard Android (main.${GITHUB_RUN_NUMBER})"
+          release_notes="mainブランチの [${GITHUB_SHA::7}](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}) から自動ビルドした署名済みAPKです。Android 8.0以降のNFC対応端末で利用できます。"
+
+          if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$release_tag" \
+              "$RUNNER_TEMP/namecard.apk" \
+              "$RUNNER_TEMP/namecard.apk.sha256" \
+              --clobber \
+              --repo "$GITHUB_REPOSITORY"
+            gh release edit "$release_tag" \
+              --title "$release_title" \
+              --notes "$release_notes" \
+              --repo "$GITHUB_REPOSITORY"
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/git/refs/tags/${release_tag}" \
+              -f sha="$GITHUB_SHA" \
+              -F force=true
+          else
+            gh release create "$release_tag" \
+              "$RUNNER_TEMP/namecard.apk" \
+              "$RUNNER_TEMP/namecard.apk.sha256" \
+              --target "$GITHUB_SHA" \
+              --title "$release_title" \
+              --notes "$release_notes" \
+              --latest=false \
+              --repo "$GITHUB_REPOSITORY"
+          fi

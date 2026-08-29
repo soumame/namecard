@@ -5,7 +5,8 @@
 The product protocol remains platform-neutral ISO 15693/ST25DV FTM, but the
 supported September release client is Android only. The phone must keep the RF
 field present while deliberately pausing RF commands during VRES charge and EPD
-refresh. Generic NDEF writers and Web NFC are not compatible with this timing.
+refresh. The Android client has an explicit URL mode that pauses FTM before an
+NDEF write; generic NDEF writers and Web NFC do not perform this coordination.
 
 iPhone is not an electrical incompatibility: an entitled Core NFC application
 can open an ISO 15693 tag-reader session and the prototype showed that it can
@@ -33,8 +34,8 @@ RF boot -> RECEIVE -> COMMIT/CRC OK -> CHARGE (3.20 V/100 ms)
 ```
 
 - RAM contains one 4,736-byte image plane and one 256-byte mailbox buffer.
-- Flash pages 0–9 (20 KiB) contain firmware.
-- Flash pages 10–12 and 13–15 are two 6-KiB display-image slots.
+- Flash pages 0–25 (52 KiB) contain firmware.
+- Flash pages 26–28 and 29–31 are two 6-KiB display-image slots.
 - A slot is valid only when its metadata CRC32 and image CRC32 pass.
 - PREPARED and COMMITTED are separate 64-bit Flash words. The target slot is
   prepared before EPD power-on and committed only after BUSY completes.
@@ -49,9 +50,9 @@ RF boot -> RECEIVE -> COMMIT/CRC OK -> CHARGE (3.20 V/100 ms)
 - If neither slot is valid, firmware assumes the factory physical display is
   white. Therefore every board must pass the factory sequence below.
 
-The ST25DV EEPROM is not used for frame storage. This keeps the same firmware
-compatible with ST25DV04KC/16KC/64KC and avoids making the 64-Kbit part a supply
-requirement.
+The ST25DV EEPROM stores only the optional NDEF URL and is not used for image
+frames. The Android client transfers images through the volatile FTM mailbox,
+so the product does not require a 64-Kbit ST25DV part.
 
 ## Factory sequence for every assembled board
 
@@ -158,7 +159,7 @@ reviewed.
   without losing the last committed display baseline.
 - Five alternating black/white/high-detail Partial updates remain legible; the
   cleanup flow restores contrast.
-- Firmware build stays below 20 KiB code and 7 KiB static RAM.
+- Firmware build stays below 52 KiB code and 7 KiB static RAM.
 - `prepare-white` reads back `EH_MODE=0` and `FTM.MB_MODE=1` on every
   production unit.
 - No 30-piece order with a changed PCB slot/notch/antenna geometry unless a
@@ -166,7 +167,7 @@ reviewed.
 
 Primary references:
 
-- ST25DVxxKC datasheet: https://www.st.com/resource/en/datasheet/st25dv64kc.pdf
-- STM32G031K6 datasheet: https://www.st.com/resource/en/datasheet/stm32g031k6.pdf
+- ST25DV04K datasheet: https://www.st.com/resource/en/datasheet/st25dv04k.pdf
+- STM32G031K8 product page: https://www.st.com/en/microcontrollers-microprocessors/stm32g031k8.html
 - JLCPCB routed-edge capability: https://jlcpcb.com/capabilities/Capabilities
 - Apple Core NFC tag reader setup: https://developer.apple.com/documentation/corenfc/building-an-nfc-tag-reader-app

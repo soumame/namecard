@@ -110,7 +110,7 @@ one-shotと同じ3.20V / 2.85V / 2.80Vであり、旧基板向けの低電圧閾
 - 別機種のAndroidスマホ10/10回
 - 転送開始からCOMPLETEまで無操作で完了
 - 更新中最低VDDをSTATUSに記録し、2.80V以上
-- アプリFlash 20KiB以下、表示store 12KiB、静的RAM 7KiB以下
+- アプリFlash 52KiB以下、表示store 12KiB、静的RAM 7KiB以下
 - 5回Partial後の外部Fullで残像が回復
 
 FWの20ms VDD診断だけでは短い電圧降下を捕捉できない。量産発注前の最終1回は、

@@ -77,7 +77,7 @@ set(APP_SOURCES
 add_executable(namecard_fw ${APP_SOURCES} ${HAL_SOURCES})
 set_target_properties(namecard_fw PROPERTIES SUFFIX ".elf")
 set_property(TARGET namecard_fw APPEND PROPERTY LINK_DEPENDS
-             ${CMAKE_CURRENT_SOURCE_DIR}/STM32G031K6TX_FLASH.ld)
+             ${CMAKE_CURRENT_SOURCE_DIR}/STM32G031K8TX_FLASH.ld)
 
 target_include_directories(namecard_fw PRIVATE
     Core/Inc
@@ -105,7 +105,7 @@ target_compile_options(namecard_fw PRIVATE
 )
 target_link_options(namecard_fw PRIVATE
     ${MCU_FLAGS}
-    -T${CMAKE_CURRENT_SOURCE_DIR}/STM32G031K6TX_FLASH.ld
+    -T${CMAKE_CURRENT_SOURCE_DIR}/STM32G031K8TX_FLASH.ld
     -Wl,--gc-sections -Wl,--cref
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/namecard_fw.map
     -Wl,--print-memory-usage

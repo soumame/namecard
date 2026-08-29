@@ -218,7 +218,7 @@
       "detail": "署名不一致の旧テストアプリとアプリデータを端末から削除する",
       "type": "process",
       "command": "${env:HOME}/Library/Android/sdk/platform-tools/adb",
-      "args": ["uninstall", "jp.namecard.nfctest"],
+      "args": ["uninstall", "work.tokumaru.namecard"],
       "problemMatcher": []
     },
     {
