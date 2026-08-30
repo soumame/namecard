@@ -24,7 +24,6 @@ jobs:
         working-directory: client/android
     env:
       ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
-      NAMECARD_KEYSTORE_FILE: ${{ runner.temp }}/namecard-release.jks
       NAMECARD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
       NAMECARD_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
       NAMECARD_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
@@ -67,7 +66,9 @@ jobs:
       - name: Prepare release identity
         shell: bash
         run: |
+          NAMECARD_KEYSTORE_FILE="$RUNNER_TEMP/namecard-release.jks"
           printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$NAMECARD_KEYSTORE_FILE"
+          echo "NAMECARD_KEYSTORE_FILE=$NAMECARD_KEYSTORE_FILE" >> "$GITHUB_ENV"
           echo "NAMECARD_VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
           echo "NAMECARD_VERSION_NAME=main.${GITHUB_RUN_NUMBER}+${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
