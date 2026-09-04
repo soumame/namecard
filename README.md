@@ -10,6 +10,7 @@ Maker Faire Tokyo 2026のブース「そうまめの部屋」で販売します�
 - [`production/`](production/) — Gerber、BOM、CPLなどの製造データ
 - [`firmware/`](firmware/) — STM32ファームウェア
 - [`client/android/`](client/android/) — Androidアプリ
+- [`iOS_development.md`](iOS_development.md) — iOS版の移植方法と開発計画
 
 Maker Faire Tokyo 2026向けの現行製造データは[`production/v5/`](production/v5/)にあります。JLCPCBへ入稿するファイルと注意点は同ディレクトリのREADMEを確認してください。
 
@@ -17,7 +18,7 @@ Maker Faire Tokyo 2026向けの現行製造データは[`production/v5/`](produc
 
 **[最新版のAndroidアプリ（namecard.apk）をダウンロード](https://github.com/soumame/namecard/releases/download/android-main/namecard.apk)**
 
-利用にはAndroid 8.0以降のNFC対応端末が必要です。iPhoneから表示内容を書き換えることはできません。
+利用にはAndroid 8.0以降のNFC対応端末が必要です。現在、このリポジトリからiOSアプリは提供していないため、iPhoneから表示内容を書き換えることはできません。iOS版の技術的な見通し、作り方、開発計画は[iOSアプリの開発方法と計画](iOS_development.md)にまとめています。
 
 1. 上のリンクから`namecard.apk`をダウンロードする
 2. ブラウザからのインストールが止められた場合は、表示された設定画面で今回使用したブラウザからのインストールを許可する
@@ -44,10 +45,10 @@ Maker Faire Tokyo 2026向けの現行製造データは[`production/v5/`](produc
 
 ### なんでiOS版は作成されていないの?
 
-- 技術的にiOS版の作成は可能ですが、NFCを用いたアプリケーションの作成には、Apple Developer Program(年間99ドル)の加入が必要です。
-- 開発者の懐事情含む、様々な状況を考慮し、このDeveloper Programには加入せず、Androidアプリのみを作成することとなりました。
-- iOS版のサポートに関しては、今後検討しており、また、技術的にも可能だと考えています。
-- みなさんがこの名刺基板を買って自分の懐事情が改善すれば、サポートする予定です。
+- AppleのCore NFCは、この名刺で使うISO 15693タグとメーカー独自コマンドに対応しています。STMicroelectronicsもST25DV向けのiOS実装例を公開しているため、技術的には実現できる可能性が高いと考えています。ただし、この基板と独自通信プロトコルを使ったiPhone実機検証はまだ行っていません。
+- XcodeとSimulatorを使い、画面や画像変換などNFC以外の部分を開発するだけなら無料で始められます。ただし、Core NFCを有効にしたアプリをiPhoneへ署名・インストールして実機検証するには`Near Field Communication Tag Reading`のCapabilityが必要で、無料のPersonal Teamでは利用できません。年間99 USD（または地域ごとの価格）のApple Developer Programへの加入が必要です。App StoreやTestFlightでの配布にも同じ加入が必要なため、現在は主に予算の都合からiOS版を作成・公開していません。
+- 移植方法と段階的な計画は[iOSアプリの開発方法と計画](iOS_development.md)を参照してください。
+- iOS版を実装または実機検証できた方は、Pull Requestに加えて[https://tokumaru.work](https://tokumaru.work)からご連絡ください。
 
 ### 1枚あたりの原価は？いくらで売るの？
 
