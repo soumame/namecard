@@ -4,6 +4,15 @@ NFCによる給電（Energy Harvesting）を用いた、書き換え可能な電
 
 Maker Faire Tokyo 2026のブース「そうまめの部屋」で販売します。
 
+## リポジトリ構成
+
+- `namecard.kicad_sch` / `namecard.kicad_pcb` — KiCad回路図・基板設計
+- [`production/`](production/) — Gerber、BOM、CPLなどの製造データ
+- [`firmware/`](firmware/) — STM32ファームウェア
+- [`client/android/`](client/android/) — Androidアプリ
+
+Maker Faire Tokyo 2026向けの現行製造データは[`production/v5/`](production/v5/)にあります。JLCPCBへ入稿するファイルと注意点は同ディレクトリのREADMEを確認してください。
+
 ## Androidアプリのインストール
 
 **[最新版のAndroidアプリ（namecard.apk）をダウンロード](https://github.com/soumame/namecard/releases/download/android-main/namecard.apk)**
@@ -45,3 +54,9 @@ Maker Faire Tokyo 2026のブース「そうまめの部屋」で販売します�
 - 部品の調達や製品の仕様次第ですが、30枚量産すると1枚あたり2500~3000円超えとなります。
   - たくさん発注すれば安くなるので、大量生産すれば2000~2500円くらいを狙えると考えています。
 - それに自分の開発に使う道具の調達や時間を入れると、5000円くらいで売るのが妥当かなと考えています。
+
+## ライセンス
+
+このリポジトリで独自に作成したハードウェア設計、製造データ、ファームウェア、Androidアプリ、文書は[MIT License](LICENSE)で提供します。自由に利用・改変・再配布できますが、著作権表示とライセンス表示を保持してください。
+
+STM32Cube/CMSISやMaterial Symbolsなどの第三者著作物には、それぞれのライセンスが適用されます。詳細は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を確認してください。

@@ -13433,7 +13433,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://datasheet.lcsc.com/datasheet/pdf/bb7b99ff1be8bff44e9ef21ee7214f91.pdf?productCode=C6364799"
+		(property "Datasheet" "https://jlcpcb.com/partdetail/179196-FNR4018S470MT/C167813"
 			(at 0 0 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -13445,7 +13445,7 @@
 				)
 			)
 		)
-		(property "Description" "47uH 610mA Irms 810mA Isat shielded power inductor, 4x4x2mm"
+		(property "Description" "47uH 650mA rated 700mA saturation 845mOhm shielded power inductor, SMD 4x4mm"
 			(at 0 0 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -13469,7 +13469,7 @@
 				)
 			)
 		)
-		(property "JLCPCB" "C6364799"
+		(property "JLCPCB" "C167813"
 			(at 0 0 180)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -13482,7 +13482,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C6364799"
+		(property "LCSC" "C167813"
 			(at 0 0 180)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -13495,7 +13495,7 @@
 				)
 			)
 		)
-		(property "MPN" "ANR4020T470M"
+		(property "MPN" "FNR4018S470MT"
 			(at 0 0 180)
 			(unlocked yes)
 			(layer "F.Fab")
