@@ -93,6 +93,24 @@
       "problemMatcher": ["$gcc"]
     },
     {
+      "label": "FW: Configure factory-release",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--preset", "factory-release"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Build factory-release",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--build", "--preset", "factory-release"],
+      "options": { "cwd": "${workspaceFolder}/firmware" },
+      "dependsOn": "FW: Configure factory-release",
+      "dependsOrder": "sequence",
+      "problemMatcher": ["$gcc"]
+    },
+    {
       "label": "FW: Provision BOR3 (2.5V falling)",
       "detail": "STM32G031 option bytesを一度だけ設定。EPDは外し、外部3.3VとST-Linkを使用する",
       "type": "process",
@@ -183,6 +201,22 @@
         "-v", "-rst"
       ],
       "dependsOn": "FW: Build release",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "FW: Flash factory-release",
+      "detail": "量産用: ST25DVを設定し、FW OKをFull表示・基準画像保存して、そのままreleaseとして動作する",
+      "type": "process",
+      "command": "arch",
+      "args": [
+        "-x86_64",
+        "/Applications/STMicroelectronics/STM32Cube/STM32CubeProgrammer/STM32CubeProgrammer.app/Contents/Resources/bin/STM32_Programmer_CLI",
+        "-c", "port=SWD", "freq=1000", "mode=UR", "reset=HWrst",
+        "-w", "${workspaceFolder}/firmware/build/factory-release/namecard_fw.hex",
+        "-v", "-rst"
+      ],
+      "dependsOn": "FW: Build factory-release",
       "dependsOrder": "sequence",
       "problemMatcher": []
     },

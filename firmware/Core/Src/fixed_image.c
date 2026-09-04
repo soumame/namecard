@@ -88,6 +88,36 @@ void fixed_image_make_nfc_ok_pattern(uint8_t *image)
     }
 }
 
+void fixed_image_make_fw_ok_pattern(uint8_t *image)
+{
+    static const uint8_t glyphs[][7] = {
+        {0x1FU, 0x10U, 0x10U, 0x1EU, 0x10U, 0x10U, 0x10U}, /* F */
+        {0x11U, 0x11U, 0x11U, 0x15U, 0x15U, 0x15U, 0x0AU}, /* W */
+        {0x0EU, 0x11U, 0x11U, 0x11U, 0x11U, 0x11U, 0x0EU}, /* O */
+        {0x11U, 0x12U, 0x14U, 0x18U, 0x14U, 0x12U, 0x11U}, /* K */
+    };
+    enum { SCALE = 6U, GLYPH_ADVANCE = 6U * SCALE };
+    static const uint8_t positions[] = {0U, 1U, 3U, 4U};
+
+    memset(image, 0xFF, NC_IMAGE_SIZE);
+    for (uint16_t x = 0U; x < NC_IMAGE_WIDTH; ++x) {
+        set_black(image, x, 1U);
+        set_black(image, x, (uint8_t)(NC_IMAGE_HEIGHT - 2U));
+    }
+    for (uint8_t y = 0U; y < NC_IMAGE_HEIGHT; ++y) {
+        set_black(image, 1U, y);
+        set_black(image, (uint16_t)(NC_IMAGE_WIDTH - 2U), y);
+    }
+
+    const uint16_t total_width = 5U * GLYPH_ADVANCE - SCALE;
+    const uint16_t origin = (uint16_t)((NC_IMAGE_WIDTH - total_width) / 2U);
+    const uint8_t top = (uint8_t)((NC_IMAGE_HEIGHT - 7U * SCALE) / 2U);
+    for (uint8_t i = 0U; i < 4U; ++i) {
+        draw_glyph(image, (uint16_t)(origin + positions[i] * GLYPH_ADVANCE),
+                   top, glyphs[i], SCALE);
+    }
+}
+
 static void make_long_bars(uint8_t *image)
 {
     for (uint16_t x = 0U; x < NC_IMAGE_WIDTH; ++x) {

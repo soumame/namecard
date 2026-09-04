@@ -745,15 +745,9 @@ static void external_power_self_test(void)
 #endif
 }
 
-#if NAMECARD_PREPARE_WHITE
-static void external_power_prepare_white(void)
+#if NAMECARD_PREPARE_WHITE || NAMECARD_FACTORY_CONFIRM
+static bool external_power_full_refresh_and_store(void)
 {
-    if ((st25dv_probe() != ST25DV_OK) ||
-        (st25dv_factory_enable_eh_at_boot() != ST25DV_OK)) {
-        set_error(NC_ERROR_HARDWARE_GATE);
-        return;
-    }
-    memset(image_buffer, 0xFF, sizeof(image_buffer));
     board_epd_power_on();
     HAL_Delay(10U);
     board_epd_bus_active();
@@ -774,11 +768,27 @@ static void external_power_prepare_white(void)
                               NC_IMAGE_FORMAT_NATIVE_1BPP, false) ||
          !display_store_commit())) {
         set_error(NC_ERROR_FLASH_STORE);
+        return false;
     } else if (result == EPD_OK) {
         current_state = APP_STATE_COMPLETE;
     } else {
         set_error(epd_error(result));
+        return false;
     }
+    return true;
+}
+#endif
+
+#if NAMECARD_PREPARE_WHITE
+static void external_power_prepare_white(void)
+{
+    if ((st25dv_probe() != ST25DV_OK) ||
+        (st25dv_factory_enable_eh_at_boot() != ST25DV_OK)) {
+        set_error(NC_ERROR_HARDWARE_GATE);
+        return;
+    }
+    memset(image_buffer, 0xFF, sizeof(image_buffer));
+    (void)external_power_full_refresh_and_store();
 }
 #endif
 
@@ -813,8 +823,23 @@ void app_init(void)
 #else
     ndef_write_pause_requested = false;
     ndef_write_paused = false;
-    mailbox_enabled = (st25dv_probe() == ST25DV_OK) &&
-                      (st25dv_enable_mailbox() == ST25DV_OK);
+    /* A freshly assembled ST25DV ships with EH_MODE=1 and MB_MODE=0.  The
+     * release image is programmed while external 3.3 V is present, so use
+     * that first boot to provision both nonvolatile settings before enabling
+     * the dynamic mailbox.  The helper only reads the registers once a board
+     * is provisioned, so normal NFC-powered boots do not rewrite EEPROM. */
+    mailbox_enabled =
+        (st25dv_probe() == ST25DV_OK) &&
+        (st25dv_factory_enable_eh_at_boot() == ST25DV_OK) &&
+        (st25dv_enable_mailbox() == ST25DV_OK);
+#if NAMECARD_FACTORY_CONFIRM
+    if (mailbox_enabled && !display_store_has_committed()) {
+        fixed_image_make_fw_ok_pattern(image_buffer);
+        if (!external_power_full_refresh_and_store()) {
+            mailbox_enabled = false;
+        }
+    }
+#endif
     (void)st25dv_read_eh_control(&eh_control);
     if (current_state != APP_STATE_ERROR) {
         if (display_store_has_pending()) {

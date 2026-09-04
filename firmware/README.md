@@ -68,6 +68,7 @@ cmake --build --preset nfc-fixed-one-shot
 - `FW: Flash prepare-white`
 - `FW: Flash nfc-fixed-test`
 - `FW: Flash nfc-fixed-one-shot`
+- `FW: Flash factory-release`
 - `FW: Flash release`
 - `FW: Provision BOR3 (2.5V falling)`（初回に一度だけ）
 
@@ -79,6 +80,19 @@ NEON要件で起動しないため、TaskはUniversal Binaryのx86_64側をRoset
 MCUをhaltする。Task完了後にST-Linkと外部3.3Vを外し、スマホのRF給電で次回起動する。
 `FW: Flash nfc-fixed-one-shot`も同じ書き込み手順で、基板上の蓄電容量だけを使い、
 8行分割を行わず全画面Partialを1回だけ実行する。v4の主Go/No-Go試験とする。
+
+`FW: Flash release`は、外部3.3Vを接続した書き込み直後の初回起動でST25DVの
+静的`EH_MODE=0`と`FTM.MB_MODE=1`を工場出荷時パスワードで設定し、read-backする。
+設定済みの基板では値を読むだけで、不揮発設定を再書き込みしない。このため表示の
+Full白初期化が不要な基板は、ST25公式アプリや`prepare-white`を経由せずreleaseを
+直接書き込める。Full白表示とSTM32 Flashの基準画像初期化も必要な量産品では、従来どおり
+`prepare-white`を完了してからreleaseをmass eraseなしで書き込む。
+
+29枚などの量産時は、EPDと外部3.3Vを接続して`FW: Flash factory-release`を使う。
+ST25DV設定のread-back成功後、e-paperをFull更新して`FW OK`を表示し、その画像を
+STM32 Flashへ基準画像として保存する。以後は通常のreleaseとして動作するため、
+`prepare-white`やreleaseの再書き込みは不要。保存済み基準画像がある場合は通常起動し、
+NFCタッチのたびに`FW OK`へ戻ることはない。
 
 初回はEPDを外したままBOR Taskを実行し、`FW: Flash release`でMCU接続と
 `TP6/EPD_SW=0V`を確認する。その後、電源を切ってFPCを接続し、

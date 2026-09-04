@@ -48,10 +48,20 @@
       "cacheVariables": {
         "NAMECARD_PREPARE_WHITE": "ON"
       }
+    },
+    {
+      "name": "factory-release",
+      "displayName": "Factory release with FW OK confirmation",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build/factory-release",
+      "cacheVariables": {
+        "NAMECARD_FACTORY_CONFIRM": "ON"
+      }
     }
   ],
   "buildPresets": [
     { "name": "release", "configurePreset": "release" },
+    { "name": "factory-release", "configurePreset": "factory-release" },
     { "name": "external-power-self-test", "configurePreset": "external-power-self-test" },
     { "name": "prepare-white", "configurePreset": "prepare-white" },
     { "name": "nfc-fixed-test", "configurePreset": "nfc-fixed-test" },

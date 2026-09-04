@@ -11,7 +11,8 @@ C19、BS1、VSH2問題は回路図修正済みであり、リワークは不要�
 最初はEPDのFPCを外し、電流制限20–30mAの外部3.3VとST-Linkだけを接続する。
 
 1. `FW: Provision BOR3 (2.5V falling)`を一度だけ実行する。
-2. `FW: Flash release`を実行する。
+2. `FW: Flash release`を実行する。この初回起動でST25DVのstatic
+   `EH_MODE=0`と`FTM.MB_MODE=1`も設定・read-backされる。
 3. TP8/SYS_VDDが約3.3V、TP6/EPD_SWがほぼ0Vであることを確認する。
 4. 外部電源を切り、PA0/PWR_HOLDが電源を逆給電していないことを確認する。
 
@@ -27,10 +28,13 @@ C19、BS1、VSH2問題は回路図修正済みであり、リワークは不要�
 
 このビルドは外部電源専用。NFC合格回数には数えない。
 
-量産初期化では続けて`FW: Flash prepare-white`を実行する。このビルドはST25DVの
-factory-default I2C passwordを提示してstatic `EH_MODE=0`と
-`FTM.MB_MODE=1`を書込み・read-backし、画面を
-Full白更新した後、同じ白画像をSTM32内蔵Flashのdisplay storeへcommitする。最後に
+量産初期化ではEPDを接続し、`FW: Flash factory-release`を実行する。このビルドは
+ST25DVのfactory-default I2C passwordを提示してstatic `EH_MODE=0`と
+`FTM.MB_MODE=1`を書込み・read-backし、画面をFull更新して`FW OK`を表示する。
+同じ画像をSTM32内蔵Flashのdisplay storeへcommitした後は、そのまま通常のreleaseとして
+動作する。`FW OK`が目視できればST25DV設定、EPD更新、基準画像保存まで完了している。
+
+全面白を出荷表示にする場合だけ、従来の`FW: Flash prepare-white`を実行した後、
 `FW: Flash release`をmass eraseなしで書き込む。
 
 ## 2. NFC fixed image — one-shot

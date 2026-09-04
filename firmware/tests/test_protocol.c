@@ -300,6 +300,25 @@ static void test_nfc_ok_pattern_pixels(void)
     assert(white > black);
 }
 
+static void test_fw_ok_pattern_pixels(void)
+{
+    fixed_image_make_fw_ok_pattern(image);
+    size_t black = 0U;
+    size_t white = 0U;
+    for (size_t index = 0U; index < sizeof(image); ++index) {
+        for (uint8_t bit = 0U; bit < 8U; ++bit) {
+            if ((image[index] & (uint8_t)(0x80U >> bit)) == 0U) {
+                ++black;
+            } else {
+                ++white;
+            }
+        }
+    }
+    assert(black > 1500U);
+    assert(white > black);
+    assert(nc_crc32_ieee(image, sizeof(image)) != 0xBF59E395UL);
+}
+
 static void test_all_pattern_images_are_distinct(void)
 {
     uint32_t crc[NC_PATTERN_LAST];
@@ -322,6 +341,7 @@ int main(void)
     test_image_crc_rejection();
     test_builtin_pattern_transfer();
     test_nfc_ok_pattern_pixels();
+    test_fw_ok_pattern_pixels();
     test_all_pattern_images_are_distinct();
     puts("protocol tests passed");
     return 0;

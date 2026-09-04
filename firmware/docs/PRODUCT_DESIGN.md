@@ -60,15 +60,15 @@ Use external regulated 3.3 V and SWD. Do not depend on NFC EH during factory
 provisioning.
 
 1. Program BOR3 once.
-2. Flash `prepare-white` and let it finish.
+2. Flash `factory-release` and wait for `FW OK` on the e-paper.
    - Presents the factory-default all-zero ST25 I2C password.
    - Writes static `EH_MODE=0`, authorizes FTM with `FTM.MB_MODE=1`, and
      verifies both values.
-   - Performs a Full refresh to white.
-   - Commits the matching white frame to internal Flash.
-3. Flash `release` without a mass erase.
-4. Remove ST-Link/external power and run one Android PATTERN update.
-5. Remove the phone completely, wait for power-off, then run a different
+   - Performs a Full refresh to the `FW OK` confirmation image.
+   - Commits the matching confirmation frame to internal Flash.
+   - Continues as the normal release firmware; no second flash is needed.
+3. Remove ST-Link/external power and run one Android PATTERN update.
+4. Remove the phone completely, wait for power-off, then run a different
    PATTERN. This is the required persistent-baseline test.
 
 The normal programming tasks write only the HEX address range and do not ask

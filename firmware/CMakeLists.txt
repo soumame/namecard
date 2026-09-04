@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(NAMECARD_BOOT_SELF_TEST "Run external-power EPD full/partial test at boot" OFF)
 option(NAMECARD_PREPARE_WHITE "Perform one external-power full refresh to white" OFF)
+option(NAMECARD_FACTORY_CONFIRM "Show and store FW OK after first factory flash" OFF)
 option(NAMECARD_NFC_FIXED_TEST "Refresh a generated image from harvested power at boot" OFF)
 option(NAMECARD_DIAGNOSTIC "Retain minimum VDD during refresh" ON)
 
@@ -89,6 +90,7 @@ target_compile_definitions(namecard_fw PRIVATE
     STM32G031xx USE_HAL_DRIVER
     NAMECARD_BOOT_SELF_TEST=$<BOOL:${NAMECARD_BOOT_SELF_TEST}>
     NAMECARD_PREPARE_WHITE=$<BOOL:${NAMECARD_PREPARE_WHITE}>
+    NAMECARD_FACTORY_CONFIRM=$<BOOL:${NAMECARD_FACTORY_CONFIRM}>
     NAMECARD_NFC_FIXED_TEST=$<BOOL:${NAMECARD_NFC_FIXED_TEST}>
     NAMECARD_DIAGNOSTIC=$<BOOL:${NAMECARD_DIAGNOSTIC}>
     NAMECARD_CHARGE_READY_MV=${NAMECARD_CHARGE_READY_MV}
