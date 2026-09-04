@@ -29,9 +29,7 @@ fp-info-cache
 *.dsn
 *.ses
 
-# Exported BOM files
-*.xml
-*.csv
+
 
 # Android source XML
 !client/android/app/src/main/AndroidManifest.xml
