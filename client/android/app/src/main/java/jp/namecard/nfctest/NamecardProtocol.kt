@@ -122,18 +122,61 @@ internal class St25Mailbox(
         null,
 ) {
     suspend fun enable() {
-        val control = try {
-            readControl()
-        } catch (error: St25CommandException) {
-            throw explainMailboxError(error)
+        val deadline = SystemClock.elapsedRealtime() + MAILBOX_ENABLE_TIMEOUT_MS
+        var lastEhControl = -1
+        var lastMailboxControl = -1
+        var lastCommandError: St25CommandException? = null
+
+        while (SystemClock.elapsedRealtime() < deadline) {
+            /* RF discovery needs only the passive tag, but FTM needs the
+             * harvested SYS_VDD to be present on ST25 VCC.  Weaker phones can
+             * therefore discover the card well before MB_EN is writable.
+             * Poll at a low rate and leave almost all of this interval quiet
+             * so VRES can charge. */
+            lastEhControl = try {
+                readDynamic(0x02)
+            } catch (error: St25CommandException) {
+                lastCommandError = error
+                -1
+            }
+
+            if ((lastEhControl >= 0) && (lastEhControl and EH_CTRL_VCC_ON == 0)) {
+                delayUntilRetry(deadline)
+                continue
+            }
+
+            try {
+                lastMailboxControl = readControl()
+                if (lastMailboxControl and MB_CTRL_MB_EN != 0) return
+
+                command(0xae, byteArrayOf(0x0d, MB_CTRL_MB_EN.toByte()))
+                delay(MAILBOX_ENABLE_VERIFY_DELAY_MS)
+                lastMailboxControl = readControl()
+                if (lastMailboxControl and MB_CTRL_MB_EN != 0) return
+            } catch (error: St25CommandException) {
+                if (error.errorCode != 0x10) throw error
+                lastCommandError = error
+            }
+            delayUntilRetry(deadline)
         }
-        if (control and 0x01 != 0) return
-        try {
-            command(0xae, byteArrayOf(0x0d, 0x01))
-        } catch (error: St25CommandException) {
-            throw explainMailboxError(error)
+
+        val diagnostic = String.format(
+            Locale.US,
+            "EH_CTRL=%s MB_CTRL=%s",
+            if (lastEhControl >= 0) "%02X".format(lastEhControl) else "??",
+            if (lastMailboxControl >= 0) "%02X".format(lastMailboxControl) else "??",
+        )
+        val reason = if ((lastEhControl >= 0) && (lastEhControl and EH_CTRL_VCC_ON == 0)) {
+            "ST25のVCCが立ち上がっていません。端末のNFCアンテナへさらに近づけて位置を固定してください"
+        } else {
+            "MB_ENを有効化できません。VCCが不安定か、静的MB_MODEが未設定です"
         }
-        check(readControl() and 0x01 != 0) { "MB_ENを書き込めませんでした" }
+        throw NfcSessionException("$reason（$diagnostic）", lastCommandError)
+    }
+
+    private suspend fun delayUntilRetry(deadline: Long) {
+        val remaining = deadline - SystemClock.elapsedRealtime()
+        if (remaining > 0L) delay(minOf(MAILBOX_ENABLE_RETRY_QUIET_MS, remaining))
     }
 
     suspend fun disable() {
@@ -283,6 +326,11 @@ internal class St25Mailbox(
     private companion object {
         const val FLAGS = 0x22
         const val MFG_ST = 0x02
+        const val MB_CTRL_MB_EN = 0x01
+        const val EH_CTRL_VCC_ON = 0x08
+        const val MAILBOX_ENABLE_TIMEOUT_MS = 8_000L
+        const val MAILBOX_ENABLE_RETRY_QUIET_MS = 1_000L
+        const val MAILBOX_ENABLE_VERIFY_DELAY_MS = 25L
         const val ACK_FRAME_SIZE = 32
         const val ACK_SETTLE_MS = 50L
         const val ACK_POLL_MS = 15L

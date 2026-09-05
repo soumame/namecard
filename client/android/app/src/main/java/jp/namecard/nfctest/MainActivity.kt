@@ -1541,7 +1541,9 @@ class MainActivity : ComponentActivity() {
         const val MAX_URL_NDEF_BYTES = 480
         const val PATTERN_COUNT = 10
         const val BATCH_STATUS_TIMEOUT_MS = 3_500L
-        const val BOOT_QUIET_MS = 1_500L
+        /* Redmi-class readers can detect the passive ST25 well before their
+         * harvested power has charged VRES enough to start the MCU. */
+        const val BOOT_QUIET_MS = 4_000L
         const val CHARGE_QUIET_MS = 1_500L
         const val FRAME_GAP_STRONG_MS = 50L
         const val FRAME_GAP_NORMAL_MS = 200L

@@ -167,7 +167,9 @@ RF configuration passwordを提示し、次を一度だけ保存する。工場�
 確認する。
 
 このアプリはReader Modeでタグを検出した時点で`NFC-V検出 UID=...`を表示し、その後
-MCU起動を1.5秒待つ。UIDが表示されてから`MCU ACK timeout`になる場合は、NFC検出では
+MCU起動のため4秒間RF通信を止める。続いて`EH_CTRL_Dyn.VCC_ON`を確認し、VCCがまだ
+立ち上がっていなければ1秒間隔・最大8秒でMailbox有効化を再試行する。UIDが表示されてから
+`MCU ACK timeout`になる場合は、NFC検出では
 なくV_EH、MCU起動、I2C、またはFW側Mailbox応答を調べる。ST25公式アプリはタグICだけ
 と通信できれば反応する一方、このアプリの全試験は継続給電でMCUも動かすため、安定
 動作する距離は公式アプリの読取距離より短くなる。
