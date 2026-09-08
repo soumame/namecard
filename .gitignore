@@ -59,3 +59,14 @@ client/android/local.properties
 *.keystore
 firmware/.cache/
 firmware/compile_commands.json
+
+# iOS local build products and signing state
+client/ios/**/.build/
+client/ios/**/.swiftpm/
+client/ios/DerivedData/
+client/ios/**/*.xcuserstate
+client/ios/**/xcuserdata/
+*.xcarchive/
+*.xcresult/
+*.p12
+*.mobileprovision
