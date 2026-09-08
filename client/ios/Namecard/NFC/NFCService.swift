@@ -162,6 +162,7 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
         progressUpdatedAt = -.infinity
         lastProgressPhase = nil
         appendLog("端末=\(HardwareValidation.model) OS=\(ProcessInfo.processInfo.operatingSystemVersionString) DATA=128 bytes")
+        appendLog("配布設定=\(HardwareValidation.distributionChannel) ベータ試験=\(HardwareValidation.profile.isBetaTesting)")
         appendLog("触覚案内: 設定=\(hapticGuide.enabled ? "ON" : "OFF") 対応=\(hapticGuide.supported)。既存ACKのみ使用。")
         message = "iPhoneの上端を名刺のアンテナに重ね、動かさないでください。"
         guard let reader = NFCTagReaderSession(pollingOption: [.iso15693], delegate: self, queue: .main) else {

@@ -11,7 +11,7 @@ Androidと同じ296×128 BINを利用します。現在は開発版で、TestFli
 - `Namecard.xcodeproj`を開き、通常は`Namecard` schemeを使用します。
 - SimulatorではNFC以外の編集・Library・ファイル機能を確認できます。
 - 実機ではApple Developer ProgramのTeamとNear Field Communication Tag Readingを設定します。
-  Team ID、証明書、プロビジョニングプロファイルはリポジトリへ保存しません。
+  証明書の秘密鍵、プロビジョニングプロファイル、API鍵はリポジトリへ保存しません。
 
 ```sh
 swift test --package-path client/ios/NamecardCore
@@ -22,8 +22,11 @@ xcodebuild -project client/ios/Namecard.xcodeproj -scheme Namecard \
 
 `python3 client/ios/tools/select_simulator.py`でインストール済みiPhoneのUDIDを取得し、
 `-destination 'platform=iOS Simulator,id=<UDID>' test`でアプリ単体試験とUI試験を実行します。
-Xcodeプロジェクトは標準ライブラリだけの`tools/generate_project.py`から再生成でき、
+XcodeプロジェクトはPython標準ライブラリとmacOSの`plutil`を使う`tools/generate_project.py`から再生成でき、
 同期グループによってSwiftファイルが自動的にターゲットへ入ります。
+`--check`は書式やXML属性の順序ではなく設定内容を比較します。Team、署名方式・証明書指定・
+プロファイル指定、Version／Build（SDK別の指定を含む）は再生成時にも保持します。
+Bundle IDや機能フラグ等の変更は生成スクリプト側にも反映してください。
 
 ### SDKとSimulator Runtimeの不一致がある場合
 
@@ -75,10 +78,18 @@ UI試験はビルド対象を`NamecardUITests`にし、生成ツールへ`--ui`�
 `Namecard Hardware` schemeは実機で給電を測定するための専用ビルドです。
 通常／一括／旧FWの更新時間に仮の8／20／8秒を使います。計測値ではありません。
 4階調書込と4階調からの移行はこのschemeでも無効です。
-公開用Archiveは両schemeともReleaseを使用し、実機検証の迂回フラグを含めません。
+上記2つのschemeのArchiveはReleaseを使用します。
+
+`Namecard Beta` schemeをTestFlight試験用に追加しています。最適化したBeta構成でArchiveし、
+画面には「ベータ試験版」と表示します。現在はiOS 17以降のNFC対応iPhoneで白黒書き込みを試せます。
+時間予算は同じ仮の8／20／8秒で、実測済みとは扱いません。通常Releaseの検証済み端末リストは空のまま維持します。
+試験対象の設定と報告内容は[ベータ試験](docs/BETA_TESTING.md)を参照してください。
+Betaでも4階調書き込み・未検証の4階調からの移行は無効です。
 
 詳細は[実機試験](docs/HARDWARE_VALIDATION.md)と[配布手順](docs/DISTRIBUTION.md)を参照してください。
-自動テストの結果と、この開発環境に残るビルド上の制約は[検証記録](docs/VALIDATION.md)に記載しています。
+自動テスト・Archiveの結果と実機での未確認事項は[検証記録](docs/VALIDATION.md)に記載しています。
+PR #4（@fromkk）から取り込んだLibraryサムネイルの改善と、ほかの差分の採用判断は
+[選択統合の記録](docs/PR4_INTEGRATION.md)を参照してください。
 
 ## 通信と復旧
 

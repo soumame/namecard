@@ -405,6 +405,36 @@ final class TransferCoordinatorTests: XCTestCase {
         }
     }
 
+    func testBetaProfileAllowsMonochromeButStillDefersLateExecuteAndRejectsGrayTransitions() async throws {
+        XCTAssertNil(HardwareProfile.betaTesting.validationReference)
+        XCTAssertTrue(HardwareProfile.betaTesting.isBetaTesting)
+        XCTAssertFalse(HardwareProfile.betaTesting.isDeveloperTesting)
+        for capability: UInt8 in [0, 0x40, 0x80] {
+            let clock = TransferTestClock()
+            var config = TransferMockMailbox.Configuration()
+            config.extraCapabilities = capability
+            let transport = TransferMockMailbox(clock: clock, configuration: config)
+            let engine = TransferCoordinator(clock: clock)
+            try await engine.preparePattern(4)
+            do {
+                let result = try await engine.run(transport: transport, uid: uid, deadline: 60, policy: .betaTesting)
+                guard capability == 0, case .completed = result else { return XCTFail("gray transition accepted") }
+            } catch {
+                XCTAssertNotEqual(capability, 0)
+                guard case .unvalidatedRoute = error as? TransferError else { return XCTFail("\(error)") }
+            }
+        }
+        let clock = TransferTestClock()
+        let transport = TransferMockMailbox(clock: clock)
+        let engine = TransferCoordinator(clock: clock)
+        try await engine.preparePattern(4)
+        guard case .resumeNeeded = try await engine.run(transport: transport, uid: uid, deadline: 14, policy: .betaTesting) else {
+            return XCTFail("beta must reserve refresh time plus five seconds")
+        }
+        let frames = await transport.events.map(\.frame)
+        XCTAssertFalse(frames.contains { $0.type == 5 })
+    }
+
     func testGrayWritesAndUnvalidatedGrayTransitionsRefused() async throws {
         let engine = TransferCoordinator()
         do { try await engine.prepareImage(Data(repeating: 0, count: 9_472)); XCTFail("gray accepted") }

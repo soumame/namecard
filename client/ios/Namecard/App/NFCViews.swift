@@ -85,6 +85,9 @@ struct NFCProgressView: View {
             ZStack {
                 AppBackdrop()
                 VStack(spacing: 24) {
+                    if HardwareValidation.isBetaBuild {
+                        Text("ベータ試験版").font(.caption).foregroundStyle(.secondary)
+                    }
                     Image(systemName: nfc.succeeded ? "checkmark.circle.fill" : "iphone.gen3.radiowaves.left.and.right")
                         .font(.system(size: 64)).foregroundStyle(.tint)
                         .symbolRenderingMode(.hierarchical)

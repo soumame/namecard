@@ -39,13 +39,14 @@ struct MainView: View {
                    onWrite: { data, _ in model.nfc.writeImage(data, clean: model.cleanBeforeWrite) },
                    onURL: model.nfc.writeURL,
                    writeUnavailableReason: HardwareValidation.allowsDisplayWrites ? nil : HardwareValidation.explanation)
+                .safeAreaInset(edge: .top, spacing: 0) { betaNotice("New") }
                 .navigationTitle("New")
                 .navigationBarTitleDisplayMode(.inline)
             }
             .tabItem { Label("New", systemImage: "square.and.pencil") }.tag(0)
-            NavigationStack { libraryView.navigationTitle("Library") }
+            NavigationStack { libraryView.safeAreaInset(edge: .top, spacing: 0) { betaNotice("Library") }.navigationTitle("Library") }
                 .tabItem { Label("Library", systemImage: "rectangle.stack") }.tag(1)
-            NavigationStack { settingsView.navigationTitle("Settings") }
+            NavigationStack { settingsView.safeAreaInset(edge: .top, spacing: 0) { betaNotice("Settings") }.navigationTitle("Settings") }
                 .tabItem { Label("Settings", systemImage: "gearshape") }.tag(2)
         }
         .adaptiveTabBarBehavior()
@@ -82,6 +83,16 @@ struct MainView: View {
         .sheet(isPresented: Binding(get: { model.nfc.showsProgress }, set: { model.nfc.showsProgress = $0 })) { progressView }
     }
 
+    @ViewBuilder private func betaNotice(_ page: String) -> some View {
+        if HardwareValidation.isBetaBuild {
+            Text("ベータ試験版 · 書き込み結果のご報告にご協力ください")
+                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity).padding(.horizontal, 8).padding(.vertical, 6)
+                .background(.regularMaterial)
+                .accessibilityIdentifier("distribution.betaNotice.\(page)")
+        }
+    }
+
     private var libraryView: some View {
         ZStack {
             AppBackdrop()
@@ -94,9 +105,11 @@ struct MainView: View {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                         ForEach(model.cards) { card in
                             VStack(alignment: .leading, spacing: 10) {
-                                if let image = try? EditorModel.image(data: card.bytes, format: card.format) {
+                                if let image = model.thumbnail(for: card) {
                                     Image(uiImage: image).resizable().interpolation(.none).aspectRatio(296.0 / 128, contentMode: .fit)
                                         .background(.white).clipShape(RoundedRectangle(cornerRadius: 8))
+                                        .accessibilityLabel("\(card.name)の完成画像")
+                                        .accessibilityIdentifier("library.thumbnail.\(card.id.uuidString)")
                                 }
                                 Text(card.name).font(.headline).lineLimit(2)
                                 Text(card.format.title).font(.caption).foregroundStyle(.secondary)

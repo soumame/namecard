@@ -10,21 +10,37 @@
 連続2回目は表示が更新済みでもアプリの完了確認が未完了でした。最新のACKログは未取得で、原因は未特定です。
 続く報告では当て方による不調・切断が残る一方、処理のスタックは見られないとのことです。
 最新ビルドの使用と完了確認警告の解消は未確認です。成功率・時間は未計測で、給電計測・各経路10回連続成功は未確認です。
-以下の成功はソフトウェアの検証結果であり、TestFlight／App Storeの公開条件を満たした意味ではありません。
+以下の成功はソフトウェアの検証結果であり、署名・TestFlightの審査やApp Storeの実機公開条件を満たした意味ではありません。
+ベータ配布では試験対象に仮の時間予算を使い、App Store版の実測記録とは区別します。
 
 ## 自動テスト
 
 | 対象 | 実行環境 | 結果 |
 |---|---|---|
-| NamecardCore | macOS上のSwift Package Manager | 57件成功 |
-| EditorTests | iPhone SE（第3世代）・iOS 17.5 Simulator | 8件成功 |
+| NamecardCore | macOS上のSwift Package Manager | 58件成功 |
+| EditorTests | iPhone Air・iOS 26.5 Simulator、Debug／Beta | 各8件成功 |
 | URLWriterTests | 同上、NFCを模擬通信へ差し替え | 9件成功 |
 | ST25TransportErrorTests | 同上、Core NFCエラーを模擬 | 3件成功 |
 | CancellableNFCRequestTests | 同上、SDK応答の遅延を模擬 | 3件成功 |
 | NFCRecoveryPolicyTests | 同上、レジスタ一時エラー・時間を模擬 | 5件成功 |
 | NFCHapticGuideTests | 同上、振動出力と通信を模擬 | 5件成功 |
 | CoreGuideHapticsTests | 同上、エンジン起動・再生・中断を模擬 | 5件成功 |
-| NamecardUITests | 同上 | 5件成功 |
+| LibraryThumbnailTests | 同上、一時Libraryを使用 | 3件成功 |
+| DistributionPolicyTests | 同上、ビルド条件・同梱設定を照合 | 各2件成功 |
+| NamecardUITests | 同上、Debug／Beta | 各6件成功 |
+| ProjectGenerationTests | macOS、Python標準unittest | 3件成功 |
+
+ベータ準備時点でアプリ単体はDebug／Betaそれぞれ43件が成功しています。
+配布区分と処理済みInfo.plistの一致、ベータ対象の絞り込み、通常版がベータ用の時間予算を使わないことを確認しました。
+共通58件には、Betaでも更新時間＋5秒を確保できなければEXECUTEを延期し、
+4階調表示済み／更新中断済みからの移行を拒否する確認を含みます。
+通常／BetaのUI各6件はアセットを含むビルドで成功しました。Beta表示・白黒書き込みボタンの有効化と、
+4階調書き込みの無効化、編集・保存・再起動後の読込、Undo／Redo、URLフォームを確認しました。
+画面確認でベータ案内と上部操作バーの重なりを発見し、各NavigationStackのコンテンツ側へ案内を移しました。
+修正後の既存UI5件が成功し、案内試験は各タブを別の識別子で確認するよう更新しました。
+safeAreaInsetのテキストはテストAPIの座標が実表示と一致しなかったため、座標比較は採用せず、
+保存したスクリーンショットと操作ボタンの利用可否で確認します。
+以前のiOS 17.5での結果は下記の履歴に残しています。
 
 共通テストでは、Android実コードから作成した白黒／4階調BINとの全バイト一致、透過合成、
 native座標・MSB first、量子化境界、CRC・ACK検証、URL正規化、NDEF／TLV長の境界を確認しています。
@@ -73,6 +89,19 @@ Hang計測追加後、同じアセット除外条件のSimulator向けDebugビ�
 URLフォームからNFC画面への遷移を確認しています。実機の約3秒の停止原因は未特定で、
 この計測追加をHang修正完了とは扱いません。共通処理は変更しておらず、共通テストは再実行していません。
 
+PR #4からの[選択統合](PR4_INTEGRATION.md)後は、共通57件、追加3件を含むアプリ単体41件、
+UI5件がすべて成功しました（UI約83秒）。サムネイルを再読込・名称変更で再利用し、
+BIN差し替え・破損・削除に追従すること、白黒／4階調の再起動後の一致、保存直後・再起動後の画面表示を確認しました。
+Simulator向けDebugのビルドは同じアセット除外条件です。統合版の実機RF試験は未実施です。
+
+Library統合時に実行した`generate_project.py --check`は失敗しました。その時点で変更していないXcodeプロジェクトに、
+生成スクリプトと異なるobjectVersion・同期グループ属性・署名Team・互換設定・書式があります。
+Library統合時にはプロジェクトの再生成を行いませんでした。
+後続のベータ配布準備では、生成器を修正して署名・バージョンを保持して再生成しました。
+`--check`は設定内容を照合し、Xcodeの書式差は許容します。署名保持・SDK別の署名指定の往復・
+BetaとReleaseの混在検出・Archiveの構成を確認するPython試験3件が成功しています。
+アプリのビルド・テスト成功と、GitHub上のCI全体の成功は区別します。
+
 同日のAndroid側修正は、単体テスト33件（接続解放・探索再初期化の6件を含む）、
 Lint（エラー0、既存警告8）、Debug APKビルドが成功しています。
 繰り返す切断、背景化からの復帰、古い検出通知・タイマー・終了通知の排除、
@@ -101,12 +130,21 @@ Xcode 26.6（17F113）／iOS Simulator SDK 26.5（23F81a）で、Debug・Release
 Swiftコンパイルとリンクに成功しています。アプリ単体テスト・UIテストのターゲットもビルドできています。
 プロジェクト生成結果の一致、Info.plist・entitlements・PrivacyInfo.xcprivacyの構文も確認しました。
 
-この検証時点ではSDKに対応するiOS 26.5 Simulator runtimeがなく、通常のschemeビルドと
+以前の検証時点ではSDKに対応するiOS 26.5 Simulator runtimeがなく、通常のschemeビルドと
 `actool`のアセット生成が失敗しました。署名なしの実機向けReleaseビルドでも同じアセット生成エラーを確認しました。
 runtimeのダウンロードは進行が停止したため中止しました。
-今回は`EXCLUDED_SOURCE_FILE_NAMES=Assets.xcassets`をコマンド引数に指定した検証用ビルドを作成し、
+当時は`EXCLUDED_SOURCE_FILE_NAMES=Assets.xcassets`をコマンド引数に指定した検証用ビルドを作成し、
 ビルド済みテストをproject-freeな`.xctestrun`から既存のiOS 17.5で実行しています。
-アセット除外はプロジェクトやCIへ設定していません。**アイコンを含む通常ビルドのログ・実機Archiveの成功はエージェント側で未確認です。**
+アセット除外はプロジェクトやCIへ設定していません。
+
+2026-09-08のベータ配布準備時には対応するiOS 26.5 runtimeを確認できたため、アセットを除外せずに
+通常ReleaseのSimulatorビルドと、Betaの署名なしiPhone向けArchiveが成功しました。
+両方の成果物で配布区分・表示名・アイコン・NFC利用目的・PrivacyInfo・JSONリソースを確認しました。
+HardwareTestのSimulatorビルドもアセットを含めて成功しています。
+最初のDebugのschemeテストではアプリのx86_64ビルドと共通パッケージのarm64ビルドが混在して失敗したため、
+Debug／HardwareTestのONLY_ACTIVE_ARCHをYESに揃えました。その後は通常のschemeテストで実行できています。
+BetaのSimulatorテストもONLY_ACTIVE_ARCH=YESとし、配布用Archiveの最適化設定は維持します。
+Apple署名・OrganizerのValidate App・アップロード・ベータ版の実機RF動作は未確認です。
 
 触覚案内の試作でも、同じアセット除外指定でDebugのアプリ・単体テスト・UIテストのコンパイルとリンクを再確認しました。
 加えてiPhoneOS向けHardwareTest構成を署名なし・同じアセット除外指定でビルドし、成功しました。
@@ -115,8 +153,9 @@ Core Haptics版も同じ条件のSimulator向けDebugと署名なし実機向け
 ユーザーが設定したXcodeプロジェクトの署名設定は変更していません。
 
 通常の環境では[READMEのコマンド](../README.md#開発環境)を使用してください。
-`.github/workflows/ios.yml`にはmacOS上の共通テスト、アセットを含むRelease・実機計測用ビルド、
-Simulatorのアプリ単体試験・UI試験を定義しています。GitHub上のCI実行結果はまだありません。
+`.github/workflows/ios.yml`にはmacOS上の共通テスト、アセットを含むRelease・HardwareTest・Betaビルド、
+通常／BetaのSimulatorアプリ単体試験・UI試験、配布区分の確認を定義しています。
+GitHub上の今回のCI実行結果はまだありません。
 
 ## 実機・公開までに残る作業
 
@@ -124,7 +163,8 @@ Simulatorのアプリ単体試験・UI試験を定義しています。GitHub上
 2. 連続2回目の完了確認保留を再試験し、TX・ACKと残り時間を記録する。不一致が再発した場合もログを保存する。機種・OS・実行scheme・清掃設定と成功時のログも記録する。
 3. [実機試験表](HARDWARE_VALIDATION.md)を販売品と同じ構成で実施し、各公開対象経路を2機種以上で各10回連続成功させる。
 4. 実測した時間上限と対応端末・OSを記録し、`check_release_readiness.py`を通す。現状は記録がないため意図どおり失敗する。
-5. [配布手順](DISTRIBUTION.md)に従い、TestFlight・審査資料・プライバシーポリシー公開・App Store審査を進める。
+5. App Store向けには上記の実測記録を揃えて審査へ進む。TestFlightの試験配布は別のBeta構成を使い、
+   [配布手順](DISTRIBUTION.md)に従って署名・テスト情報・必要な審査を準備する。
 
 通常ビルドの表示書き込み、4階調NFC書き込み、未検証の4階調からの移行は無効です。
 編集・保存・BIN入出力・URL・STATUSの実装を含みますが、実通信の成功をSimulator試験から推定していません。

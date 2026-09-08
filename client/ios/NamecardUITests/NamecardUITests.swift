@@ -24,11 +24,15 @@ final class NamecardUITests: XCTestCase {
         app.buttons["library.confirmSave"].tap()
         XCTAssertTrue(app.staticTexts[cardName].waitForExistence(timeout: 5))
         XCTAssertTrue(app.tabBars.buttons["Library"].isSelected)
+        let thumbnail = app.images.matching(NSPredicate(format: "label == %@", "\(cardName)の完成画像")).firstMatch
+        XCTAssertTrue(thumbnail.waitForExistence(timeout: 3), "保存直後にキャッシュ済みサムネイルを表示する")
+        XCTAssertGreaterThan(thumbnail.frame.height, 0)
 
         app.terminate()
         app.launch()
         app.tabBars.buttons["Library"].tap()
         XCTAssertTrue(app.staticTexts[cardName].waitForExistence(timeout: 5), "保存したBINと名称は再起動後も保持される")
+        XCTAssertTrue(thumbnail.waitForExistence(timeout: 3), "再起動後も保存BINからサムネイルを表示する")
         // Library is ordered by updatedAt descending, so this newly saved card is first.
         app.buttons["library.edit"].firstMatch.tap()
         XCTAssertTrue(app.buttons["editor.addText"].waitForExistence(timeout: 3))
@@ -72,6 +76,25 @@ final class NamecardUITests: XCTestCase {
         app.buttons["editor.output"].tap()
         XCTAssertTrue(app.buttons["editor.save"].isEnabled)
         XCTAssertTrue(app.buttons["editor.export"].isEnabled)
+    }
+
+    func testDistributionNoticeMatchesBuildChannel() {
+        let notice = app.staticTexts["distribution.betaNotice.New"]
+        #if NAMECARD_BETA
+        XCTAssertTrue(notice.waitForExistence(timeout: 3))
+        // safeAreaInset text can report an enclosing accessibility frame on iOS 26.
+        // Check usable controls here; retain a screenshot for visual layout review.
+        XCTAssertTrue(app.buttons["editor.output"].isHittable)
+        // The checked-in pilot audience includes all supported iPhones/OS versions.
+        // Core NFC availability is checked when scanning, including on Simulator.
+        XCTAssertTrue(app.buttons["editor.write"].isEnabled)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "ベータ試験版の案内と操作バー"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        #else
+        XCTAssertFalse(notice.exists)
+        #endif
     }
 
     func testStatusOnSimulatorShowsUnavailableAndCanClose() throws {

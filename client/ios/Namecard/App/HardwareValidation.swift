@@ -2,8 +2,28 @@ import Foundation
 import NamecardCore
 import UIKit
 
+#if NAMECARD_BETA && HARDWARE_TESTING
+#error("Beta distribution and bench testing must use separate build configurations")
+#endif
+
 /// Empty until measured on sold boards; simulator results never populate this file.
 enum HardwareValidation {
+    static var isBetaBuild: Bool {
+        #if NAMECARD_BETA
+        true
+        #else
+        false
+        #endif
+    }
+    static var distributionChannel: String {
+        #if NAMECARD_BETA
+        "beta"
+        #elseif HARDWARE_TESTING
+        "hardware"
+        #else
+        "app-store"
+        #endif
+    }
     struct Device: Codable {
         let model: String
         let iOSMajor: Int
@@ -41,6 +61,9 @@ enum HardwareValidation {
     static var allowsDisplayWrites: Bool {
         #if HARDWARE_TESTING
         true
+        #elseif NAMECARD_BETA
+        BetaDistribution.configuration?.allows(model: model,
+            iOSMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion) == true
         #else
         measuredDevice != nil
         #endif
@@ -48,6 +71,8 @@ enum HardwareValidation {
     static var profile: HardwareProfile {
         #if HARDWARE_TESTING
         .developerTesting
+        #elseif NAMECARD_BETA
+        allowsDisplayWrites ? .betaTesting : .unvalidated
         #else
         guard let device = measuredDevice else { return .unvalidated }
         return (try? HardwareProfile(validationReference: device.evidence,
@@ -59,6 +84,10 @@ enum HardwareValidation {
     static var explanation: String {
         #if HARDWARE_TESTING
         "実機検証用ビルドです。更新時間は仮設定で、給電を測定しながら試験してください。"
+        #elseif NAMECARD_BETA
+        allowsDisplayWrites
+            ? "ベータ試験版です。白黒書き込み・URL設定・切断からの復帰を確認し、結果をお知らせください。動作は端末や当て方によって異なります。"
+            : "この端末は今回のベータ試験の対象外です。編集・BIN保存・URL設定・STATUS確認を利用できます。"
         #else
         allowsDisplayWrites ? "この端末の表示書き換えは検証済みです。" : "この端末での給電・表示更新は検証前のため、表示への書き込みは準備中です。編集・BIN保存・URL設定・STATUS確認を利用できます。"
         #endif

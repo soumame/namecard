@@ -1,19 +1,21 @@
 import Foundation
 import NamecardCore
 import Observation
+import UIKit
 
 @MainActor @Observable
 final class AppModel {
     let editor = EditorModel()
     let nfc: NFCService
-    var cards: [LibraryCard] = []
+    private(set) var cards: [LibraryCard] = []
     var selectedTab = 0
     var cleanBeforeWrite = true
     var errorMessage: String?
+    private var thumbnails: [UUID: UIImage] = [:]
     @ObservationIgnored private var library: CardLibrary?
 
-    init() {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    init(directory: URL? = nil) {
+        let base = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(ProcessInfo.processInfo.arguments.contains("-ui-testing") ? "NamecardUITesting" : "Namecard", isDirectory: true)
         nfc = NFCService(directory: base)
         do {
@@ -24,9 +26,26 @@ final class AppModel {
     func reload() {
         let trace = PerformanceTrace.begin("Library.reload")
         defer { PerformanceTrace.end(trace) }
-        do { cards = try library?.list() ?? [] }
+        do {
+            let loaded = try library?.list() ?? []
+            let previous = Dictionary(uniqueKeysWithValues: cards.map { ($0.id, $0) })
+            var images: [UUID: UIImage] = [:]
+            // PR #4 (fromkk): reuse decoded Library thumbnails across view updates.
+            // Check the source too, so reloaded/replaced BINs cannot retain an old image.
+            for card in loaded {
+                if let old = previous[card.id], old.format == card.format, old.bytes == card.bytes,
+                   let image = thumbnails[card.id] {
+                    images[card.id] = image
+                } else {
+                    images[card.id] = try? EditorModel.image(data: card.bytes, format: card.format)
+                }
+            }
+            thumbnails = images // Drops images of deleted or unreadable cards.
+            cards = loaded
+        }
         catch { errorMessage = error.localizedDescription }
     }
+    func thumbnail(for card: LibraryCard) -> UIImage? { thumbnails[card.id] }
     func save(_ data: Data, format: ImageFormat, name: String) {
         let trace = PerformanceTrace.begin("Library.save")
         defer { PerformanceTrace.end(trace) }

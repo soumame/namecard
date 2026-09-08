@@ -54,6 +54,7 @@ public struct HardwareProfile: Sendable, Equatable {
     public let legacyRefreshSeconds: TimeInterval?
     public let grayTransitionRefreshSeconds: TimeInterval?
     public let isDeveloperTesting: Bool
+    public let isBetaTesting: Bool
 
     public static let unvalidated = HardwareProfile()
 
@@ -64,6 +65,7 @@ public struct HardwareProfile: Sendable, Equatable {
         legacyRefreshSeconds = nil
         grayTransitionRefreshSeconds = nil
         isDeveloperTesting = false
+        isBetaTesting = false
     }
 
     public init(validationReference: String, normalRefreshSeconds: TimeInterval,
@@ -82,6 +84,7 @@ public struct HardwareProfile: Sendable, Equatable {
         self.legacyRefreshSeconds = legacyRefreshSeconds
         self.grayTransitionRefreshSeconds = grayTransitionRefreshSeconds
         isDeveloperTesting = false
+        isBetaTesting = false
     }
 
     /// Bench testing only. These 8/20/8-second budgets are provisional, NOT
@@ -90,19 +93,26 @@ public struct HardwareProfile: Sendable, Equatable {
     /// packages as Release for custom configurations, so this factory must be
     /// available independently of the package's DEBUG condition.
     public static var developerTesting: HardwareProfile {
-        HardwareProfile(development: true)
+        HardwareProfile(beta: false)
     }
-    private init(development: Bool) {
+    /// Opt-in beta distribution only, selected by the app's NAMECARD_BETA build.
+    /// Uses the same provisional budgets as the existing bench build; this is
+    /// not a hardware measurement and never enables gray-to-mono transitions.
+    public static var betaTesting: HardwareProfile {
+        HardwareProfile(beta: true)
+    }
+    private init(beta: Bool) {
         validationReference = nil
         normalRefreshSeconds = 8
         batchRefreshSeconds = 20
         legacyRefreshSeconds = 8
         grayTransitionRefreshSeconds = nil
-        isDeveloperTesting = development
+        isDeveloperTesting = !beta
+        isBetaTesting = beta
     }
 
     func duration(for route: TransferRoute) throws -> TimeInterval {
-        guard validationReference != nil || isDeveloperTesting else {
+        guard validationReference != nil || isDeveloperTesting || isBetaTesting else {
             throw TransferError.unvalidatedHardware
         }
         let duration: TimeInterval?
