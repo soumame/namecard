@@ -1,0 +1,143 @@
+import XCTest
+import UIKit
+
+@MainActor
+final class NamecardUITests: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-AppleLanguages", "(ja)", "-AppleLocale", "ja_JP"]
+        app.launch()
+        XCTAssertTrue(app.buttons["editor.addText"].waitForExistence(timeout: 10))
+    }
+
+    func testJapaneseTextSavePersistsAndReopensInEditor() throws {
+        addText("山田 太郎")
+        let cardName = "名刺UI-\(UUID().uuidString.prefix(8))"
+        app.buttons["editor.output"].tap()
+        app.buttons["editor.save"].tap()
+        let nameField = app.textFields["library.name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 3))
+        enterText(cardName, in: nameField)
+        app.buttons["library.confirmSave"].tap()
+        XCTAssertTrue(app.staticTexts[cardName].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["Library"].isSelected)
+
+        app.terminate()
+        app.launch()
+        app.tabBars.buttons["Library"].tap()
+        XCTAssertTrue(app.staticTexts[cardName].waitForExistence(timeout: 5), "保存したBINと名称は再起動後も保持される")
+        // Library is ordered by updatedAt descending, so this newly saved card is first.
+        app.buttons["library.edit"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["editor.addText"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.tabBars.buttons["New"].isSelected)
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled, "Libraryの編集は完成画像を1レイヤーとして読み込む")
+        app.buttons["editor.output"].tap()
+        app.buttons["プレビュー"].tap()
+        XCTAssertTrue(app.navigationBars["完成画像"].waitForExistence(timeout: 3))
+        let previewImage = app.images["editor.previewImage"]
+        XCTAssertTrue(previewImage.waitForExistence(timeout: 3), "初回のプレビューにも保存済み画像を表示する")
+        XCTAssertGreaterThan(previewImage.frame.height, 0)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Libraryから読み込んだ日本語名刺"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testUndoAndRedoAfterAddingText() {
+        let undo = app.buttons["editor.undo"]
+        let redo = app.buttons["editor.redo"]
+        XCTAssertFalse(undo.isEnabled)
+        XCTAssertFalse(redo.isEnabled)
+        addText("編集テスト")
+        XCTAssertTrue(undo.isEnabled)
+        XCTAssertFalse(redo.isEnabled)
+        undo.tap()
+        XCTAssertFalse(undo.isEnabled)
+        XCTAssertTrue(redo.isEnabled)
+        redo.tap()
+        XCTAssertTrue(undo.isEnabled)
+        XCTAssertFalse(redo.isEnabled)
+    }
+
+    func testGray4WriteDisabledButSaveAvailable() {
+        app.buttons["editor.format"].tap()
+        app.buttons["4階調"].firstMatch.tap()
+        let explanation = app.staticTexts["editor.gray4.explanation"]
+        XCTAssertTrue(explanation.waitForExistence(timeout: 3))
+        XCTAssertTrue(explanation.label.contains("NFCセッション"))
+        XCTAssertFalse(app.buttons["editor.write"].isEnabled)
+        app.buttons["editor.output"].tap()
+        XCTAssertTrue(app.buttons["editor.save"].isEnabled)
+        XCTAssertTrue(app.buttons["editor.export"].isEnabled)
+    }
+
+    func testStatusOnSimulatorShowsUnavailableAndCanClose() throws {
+        #if targetEnvironment(simulator)
+        app.tabBars.buttons["Settings"].tap()
+        let status = app.buttons["settings.status"]
+        for _ in 0..<4 {
+            if status.exists && status.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(status.exists)
+        XCTAssertTrue(status.isHittable)
+        status.tap()
+        let message = app.staticTexts["この環境ではNFCを利用できません。NFC対応のiPhone実機で確認してください。"]
+        XCTAssertTrue(message.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.images["checkmark.circle.fill"].exists, "Simulatorで完了と表示しない")
+        app.buttons["閉じる"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.tabBars.buttons["Settings"].isSelected)
+        #else
+        throw XCTSkip("SimulatorのNFC非対応表示を確認するテストです。実機NFCは検証手順書に従ってください。")
+        #endif
+    }
+
+    func testURLFormDismissesBeforeSimulatorNFCProgress() throws {
+        #if targetEnvironment(simulator)
+        app.buttons["editor.setURL"].tap()
+        let field = app.textFields["editor.url"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        enterText("https://example.com/namecard", in: field)
+        app.buttons["editor.confirmURL"].tap()
+        let message = app.staticTexts["この環境ではNFCを利用できません。NFC対応のiPhone実機で確認してください。"]
+        XCTAssertTrue(message.waitForExistence(timeout: 5))
+        XCTAssertFalse(field.exists)
+        app.buttons["閉じる"].tap()
+        XCTAssertTrue(app.buttons["editor.setURL"].waitForExistence(timeout: 3))
+        #else
+        throw XCTSkip("Simulatorで入力フォームからNFC進捗への遷移を確認します。")
+        #endif
+    }
+
+    private func addText(_ value: String) {
+        app.buttons["editor.addText"].tap()
+        let field = app.textFields["editor.text"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        enterText(value, in: field)
+        let confirm = app.buttons["editor.confirmText"]
+        XCTAssertEqual(confirm.label, "追加")
+        XCTAssertTrue(confirm.isEnabled)
+        confirm.tap()
+        let added = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"),
+                                              object: app.buttons["editor.undo"])
+        XCTAssertEqual(XCTWaiter.wait(for: [added], timeout: 3), .completed)
+    }
+
+    private func enterText(_ value: String, in field: XCUIElement) {
+        // Paste via the real edit menu: direct typeText cannot synthesize arbitrary kanji on the kana keyboard.
+        UIPasteboard.general.string = value
+        field.tap()
+        field.press(forDuration: 1.2)
+        let paste = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == 'ペースト' OR label == 'Paste'")).firstMatch
+        XCTAssertTrue(paste.waitForExistence(timeout: 3))
+        paste.tap()
+        let entered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: field)
+        XCTAssertEqual(XCTWaiter.wait(for: [entered], timeout: 3), .completed)
+    }
+
+}

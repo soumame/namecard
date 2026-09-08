@@ -1,0 +1,53 @@
+name: iOS
+
+on:
+  pull_request:
+    paths: ["client/ios/**", ".github/workflows/ios.yml"]
+  push:
+    branches: [main]
+    paths: ["client/ios/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # Liquid Glass APIs require the iOS 26 SDK; this image defaults to Xcode 26.
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify project and core
+        run: |
+          python3 client/ios/tools/generate_project.py --check
+          swift test --package-path client/ios/NamecardCore
+      - name: Build release without signing
+        run: >-
+          xcodebuild -project client/ios/Namecard.xcodeproj -scheme Namecard
+          -configuration Release -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath "$RUNNER_TEMP/namecard-build" CODE_SIGNING_ALLOWED=NO build
+      - name: Build hardware validation configuration
+        run: >-
+          xcodebuild -project client/ios/Namecard.xcodeproj -scheme 'Namecard Hardware'
+          -configuration HardwareTest -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath "$RUNNER_TEMP/namecard-build" CODE_SIGNING_ALLOWED=NO build
+      - name: Select an installed iPhone simulator
+        run: python3 client/ios/tools/select_simulator.py >> "$GITHUB_ENV"
+      - name: Run app and UI tests
+        run: >-
+          xcodebuild -project client/ios/Namecard.xcodeproj -scheme Namecard
+          -destination "platform=iOS Simulator,id=$NAMECARD_SIMULATOR_ID"
+          -derivedDataPath "$RUNNER_TEMP/namecard-build"
+          -resultBundlePath "$RUNNER_TEMP/NamecardTests.xcresult"
+          CODE_SIGNING_ALLOWED=NO test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-test-results
+          path: ${{ runner.temp }}/NamecardTests.xcresult
+          if-no-files-found: ignore

@@ -43,7 +43,7 @@ Maker Faire Tokyo 2026向けの現行製造データは[`production/v5/`](produc
 - 少量製作のハードウェア向けアプリであるため、現在は署名済みAPKをGitHub Releasesで公開しています。
 - ソースコードもこのリポジトリで確認できます。
 
-### なんでiOS版は作成されていないの?
+### iOS版はいつ使えるの?
 
 - AppleのCore NFCは、この名刺で使うISO 15693タグとメーカー独自コマンドに対応しています。STMicroelectronicsもST25DV向けのiOS実装例を公開しているため、技術的には実現できる可能性が高いと考えています。ただし、この基板と独自通信プロトコルを使ったiPhone実機検証はまだ行っていません。
 - XcodeとSimulatorを使い、画面や画像変換などNFC以外の部分を開発するだけなら無料で始められます。ただし、Core NFCを有効にしたアプリをiPhoneへ署名・インストールして実機検証するには`Near Field Communication Tag Reading`のCapabilityが必要で、無料のPersonal Teamでは利用できません。年間99 USD（または地域ごとの価格）のApple Developer Programへの加入が必要です。App StoreやTestFlightでの配布にも同じ加入が必要なため、現在は主に予算の都合からiOS版を作成・公開していません。
