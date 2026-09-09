@@ -70,6 +70,8 @@ struct NFCSettingsView: View {
             Section("プライバシー") {
                 Text("画像・URL・ログは端末内で処理します。アカウント登録、広告、解析SDK、外部へのデータ送信はありません。LibraryとURL復旧記録は端末のバックアップ対象になる場合があります。")
                     .font(.footnote)
+                Link("プライバシーポリシー全文", destination: URL(string: "https://github.com/soumame/namecard/blob/main/client/ios/docs/PRIVACY.md")!)
+                    .accessibilityIdentifier("settings.privacyPolicy")
             }
         }
         .scrollContentBackground(.hidden)

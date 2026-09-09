@@ -1,7 +1,8 @@
 # Namecard for iOS
 
 iOS 17以降向けのSwiftUIアプリです。販売済みの名刺基板・FWを変更せず、
-Androidと同じ296×128 BINを利用します。現在は開発版で、TestFlight／App Storeでは未配布です。
+Androidと同じ296×128 BINを利用します。MameCardとしてTestFlight内部テストを開始しています。
+外部向けの招待リンクとApp Storeでの一般公開はまだありません。
 
 ## 開発環境
 

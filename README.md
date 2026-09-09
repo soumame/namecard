@@ -10,7 +10,7 @@ Maker Faire Tokyo 2026のブース「そうまめの部屋」で販売します�
 - [`production/`](production/) — Gerber、BOM、CPLなどの製造データ
 - [`firmware/`](firmware/) — STM32ファームウェア
 - [`client/android/`](client/android/) — Androidアプリ
-- [`client/ios/`](client/ios/) — iOSアプリ（TestFlight配布準備中）
+- [`client/ios/`](client/ios/) — iOSアプリ（TestFlight内部テスト中）
 - [`iOS_development.md`](iOS_development.md) — iOS版の移植方法と開発計画
 
 Maker Faire Tokyo 2026向けの現行製造データは[`production/v5/`](production/v5/)にあります。JLCPCBへ入稿するファイルと注意点は同ディレクトリのREADMEを確認してください。
@@ -35,7 +35,7 @@ Maker Faire Tokyo 2026向けの現行製造データは[`production/v5/`](produc
 
 ## iOSアプリ
 
-iOS 17以降のNFC対応iPhone向けに実装し、現在はTestFlight配布を準備しています。
+iOS 17以降のNFC対応iPhone向けに実装し、MameCardとしてTestFlight内部テストを開始しています。
 まだ一般向けのインストールリンクはありません。iPhone XR／iOS 18で白黒画像・URL設定・
 クリーニング・振動案内の動作報告を受けています。ほかの機種での確認と給電・時間の計測を進めます。
 
@@ -56,7 +56,7 @@ iOS 17以降のNFC対応iPhone向けに実装し、現在はTestFlight配布を�
 
 ### iOS版はいつ使えるの?
 
-- まずTestFlightで試験配布し、実機検証後にApp Store公開を目指します。開始時にこのREADMEへインストール導線を掲載します。
+- 現在はTestFlight内部テスト中です。外部向けの試験配布を開始したら、このREADMEへインストール導線を掲載します。実機検証後にApp Store公開を目指します。
 - Apple Developer Programには登録済みです。現在の配布手順は[iOS配布ドキュメント](client/ios/docs/DISTRIBUTION.md)を参照してください。
 
 ### 1枚あたりの原価は？いくらで売るの？
