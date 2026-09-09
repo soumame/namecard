@@ -3,7 +3,9 @@
 対象は`0.1.0 (1)`（2026-09-08アップロード）です。App Store Connectの登録名は
 `MameCard`、ホーム画面の表示名は`Namecard Beta`、Bundle IDは`work.tokumaru.namecard`です。
 内部テストでのインストール・利用についてユーザーから成功報告を受けています。
-外部テストの審査はまだ提出していません。
+2026-09-09に外部グループ「名刺ユーザーテスト」へ追加し、ベータ版App Reviewへ提出しました。
+App Store Connectで`0.1.0 (1)`の「審査待ち」を確認済みです。
+外部テスターは0人、テスターへの自動通知はOFFで、招待リンクはまだ作成していません。
 
 ## 入力先と準備状況
 
@@ -11,21 +13,23 @@ App Store Connect → MameCard → TestFlight → テスト情報へ入力しま
 
 | 項目 | 内容・状態 |
 | --- | --- |
-| ベータ版アプリの説明 | 下記の日本語原稿 |
-| フィードバックメールアドレス | 所有者から指定済み。App Store Connectへの入力・保存は未確認 |
-| マーケティングURL | `https://github.com/soumame/namecard` |
-| プライバシーポリシーURL | `https://github.com/soumame/namecard/blob/main/client/ios/docs/PRIVACY.md` |
-| 審査連絡先の姓・名・電話番号・メール | 所有者から指定済み。App Store Connectへの入力・保存は未確認 |
+| ベータ版アプリの説明 | 下記の日本語原稿を保存済み |
+| フィードバックメールアドレス | 所有者の指定値を保存済み。再読込後の画面で確認 |
+| マーケティングURL | `https://github.com/soumame/namecard`を保存済み |
+| プライバシーポリシーURL | `https://github.com/soumame/namecard/blob/main/client/ios/docs/PRIVACY.md`を保存済み |
+| 審査連絡先の姓・名・電話番号・メール | 所有者の指定値を保存済み。電話番号は国際形式に正規化し、再読込後の画面で確認 |
 | サインインが必要です | OFF。アプリにアカウント機能はない |
-| 審査メモ | 下記の英語原稿。基板送付不可を明記し、iPhone版の実演動画URLを完成後に追記 |
+| 審査メモ | 下記の英語原稿を保存済み。基板送付不可と、確認済みのiPhone版実演動画URLを記載 |
 | ビルドごとの「テスト内容」 | `0.1.0 (1)`に登録済み。原稿は下記 |
-| 審査用の実演動画 | PixelでのAndroid版実演動画は存在するが、URLは未受領。iPhone版の実演動画は未準備 |
+| 審査用の実演動画 | iPhone版の白黒書き込み動画を受領。2026-09-09にログイン不要の取得と映像内容を確認済み（約30秒、下記参照） |
 | 審査用基板の送付 | 提供しない（2026-09-09に所有者の方針を確認済み）。iPhone版の実演動画で審査を依頼 |
+| 外部テストグループ | 名刺ユーザーテスト（`19cb5ac1-9c2d-4198-8abd-c4c051b8dce2`） |
+| ベータ審査 | 2026-09-09提出。`0.1.0 (1)`は「審査待ち」 |
+| 自動的にテスターに通知 | OFF。承認後の配布開始時に案内する |
 
 連絡先の実値はこの公開リポジトリへ書きません。電話番号は国番号を含めて入力します。
-この資料の「準備済み原稿」と、App Store Connectの「保存済み項目」は別です。
-登録画面の保存結果を確認してから、ビルドを外部テスト審査へ提出します。
-ブラウザ操作の接続不良により、この資料の説明文・URL・連絡先・審査メモの入力と保存は未完了です。
+上記の保存状況と提出結果は2026-09-09に登録画面で確認したものです。
+今後この原稿を変更した場合、App Store Connectにも反映して保存を確認してください。
 
 ## 基板を送付しない審査方針
 
@@ -78,7 +82,7 @@ MameCardは、NFC給電で動作する専用の電子ペーパー名刺基板の
 ## 審査メモ（英語）
 
 日本語UIのため、操作に必要なボタン名を原文のまま併記しています。
-下記の本文に、確認できたiPhone版の実演動画URLを追記します。動画完成前には提出しません。
+下記の本文には、確認済みのiPhone版実演動画URLを含めています。
 全体がApp Store Connectの4,000文字以内に収まることを確認してください。
 
 ```text
@@ -87,6 +91,10 @@ MameCard 0.1.0 (1) is a companion app for our dedicated NFC-powered electronic-p
 Hardware: NFC operations require an NFC-capable iPhone running iOS 17 or later and our compatible business-card board (ST25DV04K, STM32G031K8, SSD1680, 296 x 128 display). An ordinary NFC sticker cannot perform the display functions. The board is powered by the iPhone's NFC field; no pairing, battery, USB connection, or firmware update is required for normal use.
 
 Hardware samples are not available for shipment. We request review using an iPhone demonstration video together with the hardware-independent app features listed below.
+
+iPhone hardware demonstration (about 30 seconds; no login required):
+https://i.gyazo.com/e6c6b81a9c74d2d1046a03b21bc5fbc5.mp4
+The video shows the app's "Test" text and apple image, NFC writing with the iPhone held over the card, the completion message near the end, and the resulting black/white image on the physical display. It demonstrates image writing; URL setup is described below.
 
 No app login, demo credentials, subscriptions, in-app purchases, or backend services are required. Image editing and Library/file operations can be reviewed without the board. Processing and app storage are local; the app does not upload images, URLs, or logs to a developer server. The privacy-policy link opens the public GitHub page.
 
@@ -107,9 +115,23 @@ If communication is interrupted, follow "同じ名刺で再スキャン" in the 
 Four-gray editing, preview, saving and BIN import/export are available. Four-gray NFC writing and conversion of an already four-gray physical display to black/white are deliberately unavailable in this beta. Use a black/white card for NFC tests. Settings also offers optional vibration guidance and a communication log.
 ```
 
-## 実演動画の撮影手順
+## 確認済みの実演動画
 
-これはiPhone版の撮影用台本です。iPhone版の動画はまだ作成していません。3〜5分程度を目安にし、
+動画URL: [iPhoneと名刺基板の白黒書き込み実演](https://i.gyazo.com/e6c6b81a9c74d2d1046a03b21bc5fbc5.mp4)
+
+2026-09-09にCookieや認証を付けずHTTP 200で取得でき、形式はMP4、長さは約29.6秒でした。
+確認した内容は、iPhone版New画面の「Test」とリンゴの画像、実物のiPhoneを名刺へ重ねたNFC操作、
+終盤の「処理完了しました」の表示、名刺に表示された同じ白黒画像です。
+動画だけではビルド番号を確認できず、URL設定・Library操作は映っていません。
+これらを実演済みとは記載せず、審査メモでは白黒書き込みの動画として案内します。
+
+元動画は約253 MiBです。取得は成功していますが、回線によって読み込みに時間がかかる場合は
+内容や待機時間を変えない圧縮版を用意し、公開URLを改めて確認できます。
+動画ファイル自体はリポジトリへ追加しません。審査中はURLを削除・非公開化しないでください。
+
+## 追加の実演動画が必要になった場合の撮影手順
+
+以下は追加説明が必要になった場合の撮影用台本です。3〜5分程度を目安にし、
 実際の更新待ち時間を省略せず撮影します。尺はAppleの規定として指定したものではありません。
 画面収録だけでは名刺の変化が見えないため、別のカメラでiPhoneと名刺を同時に写します。
 Pixelを撮影用カメラに使って構いません。実演するアプリはiPhoneのTestFlightから起動します。
@@ -135,11 +157,10 @@ NFC動作の証拠として扱いません。基板を送付しない方針と�
 
 ## 残りの作業
 
-1. 指定済みの連絡先と、この資料の説明文・URL・審査メモを入力し、登録画面で保存を確認する。
-2. iPhone版の実演動画を撮影し、審査担当者が閲覧できるURLをメモに追加する。基板は送付しない。
-3. 外部テストグループへ0.1.0 (1)を追加し、テスト内容を確認してベータ審査へ提出する。
-4. 承認後に招待リンクを作成する。iPhone・iOS 17以降に合わせた募集条件と、専用基板が必要なことを案内する。
-5. 利用可能なリンクを確認できてからREADMEへ掲載する。
+1. ベータ審査の結果を確認する。追加説明や動画が求められた場合は対応する。基板は送付しない。
+2. 承認後に外部テストの配布を開始し、招待リンクを作成する。自動通知はOFFのため、配布開始の操作も確認する。
+3. iPhone・iOS 17以降に合わせた募集条件と、専用基板が必要なことを案内する。
+4. 利用可能なリンクを確認できてからREADMEへ掲載する。
 
 この提出はTestFlight外部テスト用です。App Store向けReleaseの
 [実機検証条件](HARDWARE_VALIDATION.md)を満たしたことにはなりません。
