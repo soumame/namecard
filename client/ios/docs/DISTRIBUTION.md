@@ -2,7 +2,22 @@
 
 iPhone XR／iOS 18で、ユーザーから白黒画像・内蔵パターン・URL・クリーニング・振動案内の
 動作報告を受けています。給電と所要時間の計測、2機種以上で各経路10回連続成功の記録は未完了です。
-TestFlight／App Storeではまだ配布していません。
+2026-09-08にBeta 0.1.0（1）をApp Store Connectへアップロードしました。
+「開発者テスト」グループへ追加済みで、内部テスターがTestFlightからインストールできます。
+2026-09-09に外部グループ「名刺ユーザーテスト」へ同ビルドを追加し、ベータ審査へ提出しました。
+現在は「審査待ち」です。テスターへの自動通知はOFFにしています。
+外部向けの招待リンクとApp Storeでの一般公開はまだありません。
+
+## 登録済みアプリ
+
+- App Store Connectのアプリ名: `MameCard`
+- Apple ID: `6809809285`
+- Bundle ID: `work.tokumaru.namecard`
+- SKU: `namecard-ios`
+- 内部テストグループ: `開発者テスト`（ビルドは手動で追加）
+
+初回のホーム画面の表示名は`Namecard Beta`です。
+次回のアップロードではBuild番号を`2`以上に増やします。
 
 ## 配布構成
 
@@ -33,14 +48,23 @@ check_release_readiness.pyで引き続き確認します。BetaをそのままAp
    Beta構成のTeam、Bundle ID work.tokumaru.namecard、Automatically manage signing、
    Near Field Communication Tag Readingを確認する。既存の署名設定は再生成時にも保持されます。
 3. App Store Connectに、同じBundle IDのアプリを作成する。
+   プライバシーポリシーは[公開済みの本文](https://github.com/soumame/namecard/blob/main/client/ios/docs/PRIVACY.md)を使用できる。
+   アプリのSettingsからも同じ本文を開ける。アプリ名・日本語・Bundle ID・SKUを設定する。
 4. XcodeでNamecard Beta schemeと実機用の汎用ビルド先を選び、Product → Archiveを実行する。
    VersionとBuildは通常版と共通です。アップロード済みのBuild番号は再利用せず増やします。
 5. Organizerで対象Archiveを選び、Validate App、Distribute AppからApp Store Connectへアップロードする。
+   外部テストにも使うため、配布方式の「TestFlight Internal Only」は選ばない。
    署名・entitlement・審査への適合は、ローカルの構成確認だけでは保証されません。
 6. App Store ConnectのTestFlightでビルド処理完了を待ち、必要な輸出コンプライアンス等の質問へ回答する。
    内部テスターへ配布し、インストールからBIN取込・画像更新・URL・中断復旧まで再確認する。
 7. 購入者など外部テスター向けには、テスト情報・連絡先・専用基板が必要なこと・操作方法を登録し、
    外部テストの審査を受ける。招待または公開リンクを用意できてから、リポジトリREADMEに導線を掲載する。
+
+初回ビルドの説明文・英語の審査メモ・動画撮影手順は
+[TestFlight外部テストの登録資料](TESTFLIGHT_REVIEW.md)を使用できます。
+2026-09-09にiPhone版の白黒書き込み実演動画を確認し、登録資料へURLを追記しました。
+指定済み連絡先と動画入り審査メモをApp Store Connectへ保存し、同日にベータ審査へ提出しました。
+審査用の基板は送付せず、実演動画と操作説明で審査を依頼します。
 
 利用者はTestFlightアプリからインストールします。利用者のDeveloper Program加入は不要です。
 TestFlightのビルドには90日の有効期限があります。[AppleのTestFlight概要](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
@@ -74,8 +98,8 @@ Team IDは認証情報ではありません。既存のTeam指定はプロジェ
   check_release_readiness.pyを通す。Namecard schemeのReleaseで新しくArchiveする。
 - 製品名、対応端末／OS、説明、スクリーンショット、サポートURLを登録する。
 - [プライバシーポリシー](PRIVACY.md)を公開アクセス可能なURLに掲載し、実装に沿ってApp Privacyを申告する。
-- 基板の入手方法、接触位置、白黒書き込みとURL設定の操作動画・説明をReview Notesへ添付し、
-  審査担当者が必要とする基板等を用意する。
+- 基板の接触位置、白黒書き込みとURL設定を、提出ビルドが動くiPhoneと名刺を一緒に映した
+  操作動画・説明でReview Notesへ案内する。基板は送付しない方針を明記し、追加資料の依頼に対応する。
 - 4階調NFC書き込みが非対応であること、FW更新が不要であることを明記する。
 - 審査と公開が完了してから、App StoreのURLをリポジトリREADMEへ掲載する。
 
