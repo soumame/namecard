@@ -24,6 +24,7 @@ struct EditorLayer: Identifiable {
     var size: CGSize
     var fontSize: CGFloat = 24
     var rotation: CGFloat = 0
+    var pixelated = false
 
     @MainActor var bounds: CGRect {
         let measured: CGSize
@@ -138,6 +139,21 @@ final class EditorModel {
         recordChange()
         let layer = EditorLayer(id: UUID(), content: .image(image),
                                 size: CGSize(width: image.size.width * fit, height: image.size.height * fit))
+        layers.append(layer)
+        selection = layer.id
+        changed()
+    }
+
+    func addQRCode(_ code: QRCode) throws {
+        guard code.canAddToCanvas else { throw QRCodeError.tooLong }
+        let image = try code.image(scale: code.canvasScale)
+        let side = image.size.width
+        recordChange()
+        let layer = EditorLayer(
+            id: UUID(), content: .image(image),
+            center: CGPoint(x: floor((296 - side) / 2) + side / 2, y: floor((128 - side) / 2) + side / 2),
+            size: image.size, pixelated: true
+        )
         layers.append(layer)
         selection = layer.id
         changed()
@@ -296,7 +312,12 @@ final class EditorModel {
             context.rotate(by: layer.rotation)
             context.translateBy(x: -layer.center.x, y: -layer.center.y)
             switch layer.content {
-            case .image(let image): image.draw(in: layer.bounds)
+            case .image(let image):
+                if layer.pixelated {
+                    context.interpolationQuality = .none
+                    context.setShouldAntialias(false)
+                }
+                image.draw(in: layer.bounds)
             case .text(let value):
                 (value as NSString).draw(in: layer.bounds, withAttributes: [
                     .font: UIFont.systemFont(ofSize: layer.fontSize, weight: .bold),

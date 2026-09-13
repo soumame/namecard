@@ -136,6 +136,74 @@ final class NamecardUITests: XCTestCase {
         #endif
     }
 
+    func testClearURLNeedsNoInputAndDismissesBeforeNFCProgress() throws {
+        #if targetEnvironment(simulator)
+        app.buttons["editor.setURL"].tap()
+        let field = app.textFields["editor.url"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["editor.confirmURL"].isEnabled)
+        let clear = app.buttons["editor.clearURL"]
+        XCTAssertTrue(clear.isEnabled)
+        clear.tap()
+        let message = app.staticTexts["この環境ではNFCを利用できません。NFC対応のiPhone実機で確認してください。"]
+        XCTAssertTrue(message.waitForExistence(timeout: 5))
+        XCTAssertFalse(field.exists)
+        XCTAssertFalse(app.images["checkmark.circle.fill"].exists)
+        app.buttons["閉じる"].tap()
+        XCTAssertTrue(app.buttons["editor.setURL"].waitForExistence(timeout: 3))
+        #else
+        throw XCTSkip("SimulatorでURLクリアからNFC進捗への遷移を確認します。")
+        #endif
+    }
+
+    func testQRCodePreviewAddsImageAndSupportsUndoRedo() {
+        openQRTool()
+        let field = app.textFields["editor.qrURL"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["editor.generateQR"].isEnabled)
+        enterText("example.com/namecard", in: field)
+        app.buttons["editor.generateQR"].tap()
+        XCTAssertTrue(app.images["editor.qrPreview"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["https://example.com/namecard"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "QRコード生成プレビュー"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["editor.addQRToCanvas"].tap()
+        XCTAssertTrue(app.buttons["editor.undo"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled)
+        app.buttons["editor.undo"].tap()
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled)
+        XCTAssertTrue(app.buttons["editor.redo"].isEnabled)
+        app.buttons["editor.redo"].tap()
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled)
+    }
+
+    func testChangingQRURLRemovesStalePreview() {
+        openQRTool()
+        let field = app.textFields["editor.qrURL"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        enterText("example.com", in: field)
+        app.buttons["editor.generateQR"].tap()
+        XCTAssertTrue(app.images["editor.qrPreview"].waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("/new")
+        XCTAssertFalse(app.images["editor.qrPreview"].exists)
+        XCTAssertFalse(app.buttons["editor.addQRToCanvas"].exists)
+        app.buttons["閉じる"].tap()
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled)
+    }
+
+    private func openQRTool() {
+        let qr = app.buttons["editor.qrCode"]
+        if !qr.isHittable {
+            let url = app.buttons["editor.setURL"]
+            url.press(forDuration: 0.1, thenDragTo: app.buttons["editor.addText"])
+        }
+        XCTAssertTrue(qr.waitForExistence(timeout: 3))
+        qr.tap()
+    }
+
     private func addText(_ value: String) {
         app.buttons["editor.addText"].tap()
         let field = app.textFields["editor.text"]

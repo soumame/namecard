@@ -37,7 +37,7 @@ struct MainView: View {
                     savePayload = data; saveFormat = format; cardName = ""; showSave = true
                 }, onExport: { data, format in export(data, name: "namecard-\(format == .gray4 ? "gray4" : "dither")") },
                    onWrite: { data, _ in model.nfc.writeImage(data, clean: model.cleanBeforeWrite) },
-                   onURL: model.nfc.writeURL,
+                   onURL: model.nfc.updateURL,
                    writeUnavailableReason: HardwareValidation.allowsDisplayWrites ? nil : HardwareValidation.explanation)
                 .safeAreaInset(edge: .top, spacing: 0) { betaNotice("New") }
                 .navigationTitle("New")

@@ -5,6 +5,21 @@ import XCTest
 final class URLCodecTests: XCTestCase {
     private let identity = Type5Identity(manufacturerCode: 2, icReference: 0x24, blockCount: 128, blockSize: 4, allBlocksWritable: true)
 
+    func testClearIsExplicitAndFitsTheType5WritePlan() throws {
+        XCTAssertThrowsError(try URLUpdate.set(" \n").normalized())
+        XCTAssertThrowsError(try URLUpdate.set("").ndefMessage())
+        XCTAssertEqual(try URLUpdate.set(" example.com ").normalized(), .set("https://example.com"))
+        let operation = try URLUpdate.clear.normalized()
+        let message = try operation.ndefMessage()
+        XCTAssertEqual(message, Data([0xd0, 0, 0]))
+        var memory = Data(repeating: 0, count: 512)
+        let writes = try URLCodec.blankType5WritePlan(memory: memory, message: message, identity: identity)
+        for write in writes {
+            memory.replaceSubrange(write.block * 4..<(write.block * 4 + 4), with: write.bytes)
+        }
+        XCTAssertEqual(try URLCodec.type5NDEF(in: memory), message)
+    }
+
     func testAndroidURLNormalizationCases() throws {
         XCTAssertEqual(try URLCodec.normalize(" example.com/namecard \n"), "https://example.com/namecard")
         XCTAssertEqual(try URLCodec.normalize("http://example.com/名刺"), "http://example.com/%E5%90%8D%E5%88%BA")

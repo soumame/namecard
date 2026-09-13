@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
     private var pendingMode = MODE_NONE
 
     @Volatile
-    private var pendingUrl: String? = null
+    private var pendingUrl: UrlUpdate? = null
 
     @Volatile
     private var selectedPatternId = 1
@@ -144,6 +144,8 @@ class MainActivity : ComponentActivity() {
                     onExportEditor = ::exportEditor,
                     onWriteEditor = ::writeEditor,
                     onWriteUrl = ::prepareUrlWrite,
+                    onClearUrl = { prepareUrlUpdate(UrlUpdate.Clear) },
+                    onAddQrCode = ::addQrCode,
                     onImportCard = {
                         libraryImportPicker.launch(arrayOf("application/octet-stream"))
                     },
@@ -218,6 +220,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun addQrCode(code: QrCode) {
+        runCatching {
+            require(code.canAddToCanvas) { "短いURLを入力してください。" }
+            val side = code.moduleCount * code.canvasScale
+            editor.addQrCode(Bitmap.createBitmap(code.pixels(code.canvasScale), side, side, Bitmap.Config.ARGB_8888))
+        }.onSuccess {
+            screenState = screenState.copy(editorMessage = "QRコードを追加しました。位置やサイズを調整できます。")
+        }.onFailure { error ->
+            screenState = screenState.copy(editorMessage = "QRコード追加エラー: ${error.message}")
+        }
+    }
+
     private fun saveEditorToLibrary(name: String) {
         runCatching {
             val format = screenState.selectedImageFormat
@@ -255,19 +269,23 @@ class MainActivity : ComponentActivity() {
             screenState = screenState.copy(editorMessage = "URLの形式を確認してください。")
             return
         }
+        prepareUrlUpdate(UrlUpdate.Set(normalized))
+    }
+
+    private fun prepareUrlUpdate(update: UrlUpdate) {
         imageTransferSession = null
-        pendingUrl = normalized
+        pendingUrl = update
         pendingMode = MODE_URL
         screenState = screenState.copy(
-            editorMessage = "URL書き込み準備完了。名刺へタッチして動かさないでください。",
+            editorMessage = "${update.action}準備完了。名刺へタッチして動かさないでください。",
             writeProgress = WriteProgressState(
-                title = "URL設定",
-                detail = "URLを書き込む名刺へタッチしてください。",
+                title = update.title,
+                detail = update.touchPrompt,
                 antennaGuide = antennaGuide,
             ),
         )
         requestNfcScan()
-        log("URL書き込みを選択: $normalized\n名刺にタッチしてください。\n")
+        log("${update.action}を選択\n名刺にタッチしてください。\n")
     }
 
     private fun importLibraryCard(uri: Uri) {
@@ -545,7 +563,7 @@ class MainActivity : ComponentActivity() {
             "NFC-V検出 UID=${tag.id.toHex()}" +
                 when (mode) {
                     MODE_STATUS -> "。MCU起動を待ちます。\n"
-                    MODE_URL -> "。URL書き込みを準備します。\n"
+                    MODE_URL -> "。${selectedUrl?.action}を準備します。\n"
                     else -> "。MCU起動・VRES充電を待ちます。\n"
                 },
         )
@@ -558,12 +576,12 @@ class MainActivity : ComponentActivity() {
                 detail = "接続を確立し、名刺側の状態を確認しています。",
             )
         } else if (mode == MODE_URL) {
-            showUrlWriteProgressIfNeeded()
+            showUrlWriteProgressIfNeeded(requireNotNull(selectedUrl))
             updateWriteProgress(
                 progress = 0.08f,
                 currentStep = 1,
                 status = "NFCタグを検出しました",
-                detail = "画像転送を停止し、URL書き込みを準備しています。",
+                detail = "画像転送を停止し、${selectedUrl.action}を準備しています。",
             )
         }
         val transferImage = if (mode == MODE_IMAGE) selectedImage?.copyOf() else null
@@ -602,7 +620,7 @@ class MainActivity : ComponentActivity() {
         transferImage: ByteArray?,
         transferImageFormat: Int,
         patternId: Int,
-        url: String?,
+        url: UrlUpdate?,
         connections: TagConnectionOwner,
     ): Boolean {
         val nfc = NfcV.get(tag)
@@ -618,18 +636,24 @@ class MainActivity : ComponentActivity() {
             nfc.connect()
             currentCoroutineContext().ensureActive()
             if (mode == MODE_URL) {
-                stage = "URL書き込み"
-                runUrlWrite(tag, nfc, requireNotNull(url), connections) { nextStage ->
+                val update = requireNotNull(url)
+                stage = update.action
+                runUrlWrite(tag, nfc, update, connections) { nextStage ->
                     stage = nextStage
                 }
                 pendingUrl = null
                 pendingMode = MODE_NONE
-                completeWriteProgress("URLを書き込み、読み返して確認しました。")
+                val completed = if (update == UrlUpdate.Clear) {
+                    "URLをクリアし、読み返して確認しました。"
+                } else {
+                    "URLを書き込み、読み返して確認しました。"
+                }
+                completeWriteProgress(completed)
                 ui.post {
-                    screenState = screenState.copy(editorMessage = "URLを書き込みました。")
+                    screenState = screenState.copy(editorMessage = completed)
                 }
                 refreshReaderMode()
-                log("URLの書き込みと読み返し確認が完了しました。\n")
+                log("$completed\n")
                 return false
             }
             if (mode == MODE_IMAGE) {
@@ -1151,7 +1175,7 @@ class MainActivity : ComponentActivity() {
             } else if (mode == MODE_URL) {
                 interruptWriteProgress(
                     status = "名刺を見失いました",
-                    detail = "URL書き込みを完了できませんでした。一度離してから再タッチしてください。",
+                    detail = "${url?.action}を完了できませんでした。一度離してから再タッチしてください。",
                 )
             }
             restartReader = true
@@ -1174,7 +1198,7 @@ class MainActivity : ComponentActivity() {
             } else if (mode == MODE_URL) {
                 interruptWriteProgress(
                     status = "NFC通信が中断しました",
-                    detail = "URL書き込みを完了できませんでした。一度離してから再タッチしてください。",
+                    detail = "${url?.action}を完了できませんでした。一度離してから再タッチしてください。",
                 )
             }
             restartReader = true
@@ -1186,7 +1210,7 @@ class MainActivity : ComponentActivity() {
                 "失敗: $stage: ${error.message}" +
                     when (mode) {
                         MODE_IMAGE -> "\n画像の進捗を保持しました。そのまま再タッチしてください。\n"
-                        MODE_URL -> "\nURL設定を中止しました。内容を確認してやり直してください。\n"
+                        MODE_URL -> "\n${url?.title}を中止しました。内容を確認してやり直してください。\n"
                         MODE_PATTERN_SEQUENCE ->
                             "\n次のパターン番号を保持しました。位置を合わせてそのまま再タッチしてください。\n"
                         else -> "\nもう一度試験を選んでタッチしてください。\n"
@@ -1201,7 +1225,7 @@ class MainActivity : ComponentActivity() {
                 pendingMode = MODE_NONE
                 pendingUrl = null
                 interruptWriteProgress(
-                    status = "URLを書き込めませんでした",
+                    status = "${url?.action}を完了できませんでした",
                     detail = error.message ?: "名刺側FWとURLを確認してください。",
                 )
                 refreshReaderMode()
@@ -1216,11 +1240,16 @@ class MainActivity : ComponentActivity() {
     private suspend fun runUrlWrite(
         tag: Tag,
         initialNfc: NfcV,
-        url: String,
+        update: UrlUpdate,
         connections: TagConnectionOwner,
         setStage: (String) -> Unit,
     ) {
-        val message = NdefMessage(arrayOf(NdefRecord.createUri(url)))
+        val record = when (update) {
+            is UrlUpdate.Set -> NdefRecord.createUri(update.url)
+            // A valid empty NDEF record removes the URI while keeping the tag writable.
+            UrlUpdate.Clear -> NdefRecord(NdefRecord.TNF_EMPTY, byteArrayOf(), byteArrayOf(), byteArrayOf())
+        }
+        val message = NdefMessage(arrayOf(record))
         val expected = message.toByteArray()
         require(expected.size <= MAX_URL_NDEF_BYTES) {
             "URLが長すぎます。短いURLを使用してください"
@@ -1228,11 +1257,11 @@ class MainActivity : ComponentActivity() {
 
         var mailboxPaused = false
         try {
-            setStage("名刺側FWのURL書き込み準備")
+            setStage("名刺側FWの${update.action}準備")
             updateWriteProgress(
                 progress = 0.18f,
                 currentStep = 1,
-                status = "URL書き込みを準備中",
+                status = "${update.action}を準備中",
                 detail = "画像転送用Mailboxを安全に停止しています。",
             )
             delay(BOOT_QUIET_MS)
@@ -1256,11 +1285,11 @@ class MainActivity : ComponentActivity() {
             mailboxPaused = true
             connections.release(initialNfc)
 
-            setStage("NDEF URL書き込み")
+            setStage("NDEF ${update.action}")
             updateWriteProgress(
                 progress = 0.48f,
                 currentStep = 2,
-                status = "URLを書き込み中",
+                status = if (update == UrlUpdate.Clear) "URLをクリア中" else "URLを書き込み中",
                 detail = "完了するまで名刺を動かさないでください。",
             )
             writeNdefMessage(tag, message, connections)
@@ -1416,13 +1445,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun showUrlWriteProgressIfNeeded() {
+    private fun showUrlWriteProgressIfNeeded(update: UrlUpdate) {
         ui.post {
             if (screenState.writeProgress == null) {
                 screenState = screenState.copy(
                     writeProgress = WriteProgressState(
-                        title = "URL設定",
-                        detail = "URLを書き込む名刺へタッチしてください。",
+                        title = update.title,
+                        detail = update.touchPrompt,
                         antennaGuide = antennaGuide,
                     ),
                 )

@@ -1,9 +1,129 @@
 import Foundation
+import CoreNFC
 import XCTest
 import NamecardCore
 @testable import Namecard
 
 final class URLWriterTests: XCTestCase {
+    @MainActor
+    func testServiceRestoresPendingClearAfterRelaunch() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = URLJournalStore(file: directory.appendingPathComponent("url-write-journal.json"))
+        defer { clean(store) }
+        try store.save(URLWriteJournal(uid: Data([1,2,3,4]), url: "", message: URLCodec.emptyNDEFMessage, clearsURL: true))
+        let service = NFCService(directory: directory)
+        XCTAssertEqual(service.recoveryURL, .clear)
+    }
+
+    func testClearWritesAnEmptyRecordAndAllowsURLToBeSetAgain() async throws {
+        let store = makeStore()
+        defer { clean(store) }
+        let tag = try MockURLTag(formatted: true)
+        try await clear(tag, store)
+        XCTAssertEqual(tag.events, ["enable", "prepare", "disable", "read", "ndefStatus", "writeNDEF", "read", "enable"])
+        let bytes = try XCTUnwrap(URLCodec.type5NDEF(in: tag.memory))
+        let message = try XCTUnwrap(NFCNDEFMessage(data: bytes))
+        XCTAssertEqual(message.records.count, 1)
+        let record = try XCTUnwrap(message.records.first)
+        XCTAssertEqual(record.typeNameFormat, .empty)
+        XCTAssertTrue(record.type.isEmpty)
+        XCTAssertTrue(record.identifier.isEmpty)
+        XCTAssertTrue(record.payload.isEmpty)
+        XCTAssertNil(record.wellKnownTypeURIPayload())
+        XCTAssertNil(try store.load())
+
+        try await clear(tag, store) // Clearing an already cleared card is safe.
+        try await write(tag, store)
+        XCTAssertEqual(try URLCodec.type5NDEF(in: tag.memory), try URLCodec.ndefMessage(for: targetURL))
+    }
+
+    func testClearFailuresKeepOperationForRecovery() async throws {
+        for failure in ["write", "mismatch", "restore"] {
+            let store = makeStore()
+            defer { clean(store) }
+            let tag = try MockURLTag(formatted: true)
+            tag.failWrite = failure == "write"
+            tag.ignoreWrite = failure == "mismatch"
+            tag.failRestore = failure == "restore"
+            await expectFailure { try await self.clear(tag, store) }
+            XCTAssertEqual(try store.load()?.operation, .clear, failure)
+            XCTAssertEqual(tag.events.last, "enable", failure)
+
+            tag.failWrite = false
+            tag.ignoreWrite = false
+            tag.failRestore = false
+            try await URLWriter.write(try XCTUnwrap(store.load()).operation, mailbox: tag, store: store,
+                                      sleep: { _ in }, progress: { _ in })
+            XCTAssertEqual(try URLCodec.type5NDEF(in: tag.memory), URLCodec.emptyNDEFMessage)
+            XCTAssertNil(try store.load())
+        }
+    }
+
+    func testPendingClearCannotBeReplacedOrAppliedToAnotherCard() async throws {
+        let store = makeStore()
+        defer { clean(store) }
+        let tag = try MockURLTag(formatted: true)
+        tag.failWrite = true
+        await expectFailure { try await self.clear(tag, store) }
+        tag.events = []
+        await expectFailure { try await self.write(tag, store) }
+        XCTAssertTrue(tag.events.isEmpty)
+        let other = try MockURLTag(formatted: true, identifier: Data([9,9]))
+        await expectFailure { try await self.clear(other, store) }
+        XCTAssertTrue(other.events.isEmpty)
+        XCTAssertEqual(try store.load()?.operation, .clear)
+    }
+
+    func testClearRefusesProtectedOrUnknownMemoryWithoutWriting() async throws {
+        for status in [URLMemoryStatus.readOnly, .notSupported] {
+            let store = makeStore()
+            defer { clean(store) }
+            let tag = try MockURLTag(formatted: true)
+            let original = tag.memory
+            tag.overriddenStatus = status
+            await expectFailure { try await self.clear(tag, store) }
+            XCTAssertEqual(tag.memory, original)
+            XCTAssertFalse(tag.events.contains("writeNDEF"))
+            XCTAssertFalse(tag.events.contains(where: { $0.hasPrefix("block") }))
+            XCTAssertEqual(tag.events.last, "enable")
+            XCTAssertNil(try store.load())
+        }
+    }
+
+    func testClearBlankCardResumesInterruptedFormatting() async throws {
+        let store = makeStore()
+        defer { clean(store) }
+        let tag = try MockURLTag(formatted: false)
+        tag.failBlockNumber = 2
+        await expectFailure { try await self.clear(tag, store) }
+        XCTAssertEqual(try store.load()?.operation, .clear)
+        XCTAssertNotNil(try store.load()?.writes)
+        tag.failBlockNumber = nil
+        try await clear(tag, store)
+        XCTAssertEqual(try URLCodec.type5NDEF(in: tag.memory), URLCodec.emptyNDEFMessage)
+        XCTAssertNil(try store.load())
+    }
+
+    func testLegacyURLJournalStillResumesAndCannotBeClearedInstead() async throws {
+        let store = makeStore()
+        defer { clean(store) }
+        let tag = try MockURLTag(formatted: true)
+        let bytes = try URLCodec.ndefMessage(for: targetURL)
+        // This JSON has exactly the fields written by the previous app version.
+        let legacy = try JSONSerialization.data(withJSONObject: [
+            "uid": tag.identifier.base64EncodedString(), "url": targetURL,
+            "message": bytes.base64EncodedString(),
+        ])
+        try FileManager.default.createDirectory(at: store.file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try legacy.write(to: store.file)
+        XCTAssertEqual(try store.load()?.operation, .set(targetURL))
+        await expectFailure { try await self.clear(tag, store) }
+        XCTAssertTrue(tag.events.isEmpty)
+        try await write(tag, store)
+        XCTAssertEqual(try URLCodec.type5NDEF(in: tag.memory), bytes)
+        XCTAssertNil(try store.load())
+    }
+
     func testPrepareDisableWriteVerifyRestoreOrdering() async throws {
         let store = makeStore()
         defer { clean(store) }
@@ -140,8 +260,11 @@ final class URLWriterTests: XCTestCase {
     }
 
     private let targetURL = "https://example.com/namecard"
+    private func clear(_ tag: MockURLTag, _ store: URLJournalStore) async throws {
+        try await URLWriter.write(.clear, mailbox: tag, store: store, sleep: { _ in }, progress: { _ in })
+    }
     private func write(_ tag: MockURLTag, _ store: URLJournalStore) async throws {
-        try await URLWriter.write(targetURL, mailbox: tag, store: store, sleep: { _ in }, progress: { _ in })
+        try await URLWriter.write(.set(targetURL), mailbox: tag, store: store, sleep: { _ in }, progress: { _ in })
     }
     private func makeStore() -> URLJournalStore {
         URLJournalStore(file: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("journal.json"))

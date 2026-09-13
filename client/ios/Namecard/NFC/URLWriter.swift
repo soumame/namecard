@@ -21,6 +21,10 @@ struct URLWriteJournal: Codable {
     let message: Data
     var originalMemory: Data?
     var writes: [Type5BlockWrite]?
+    // Optional for compatibility with journals saved before URL clearing existed.
+    var clearsURL: Bool?
+
+    var operation: URLUpdate { clearsURL == true ? .clear : .set(url) }
 }
 
 /// Kept on disk before touching EEPROM, including the exact blank-format write plan.
@@ -40,19 +44,21 @@ struct URLJournalStore {
 }
 
 enum URLWriter {
-    static func write(_ input: String, mailbox: any URLTagTransport, store: URLJournalStore,
+    static func write(_ operation: URLUpdate, mailbox: any URLTagTransport, store: URLJournalStore,
                       sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { seconds in
                           try await Task.sleep(for: .seconds(seconds))
                       },
                       progress: @escaping @Sendable (String) -> Void) async throws {
-        let url = try URLCodec.normalize(input)
-        let expected = try URLCodec.ndefMessage(for: url)
+        let operation = try operation.normalized()
+        let expected = try operation.ndefMessage()
         let uid = mailbox.identifier
         let prior = try store.load()
-        if let prior, prior.uid != uid || prior.message != expected {
-            throw AppFailure("未完了のURL設定があります。元の名刺で「URL設定を再開」を選んでください。")
+        if let prior, prior.uid != uid || prior.message != expected || prior.operation != operation {
+            throw AppFailure("未完了のURL操作があります。Settingsから元の名刺で再開してください。")
         }
-        var journal = prior ?? URLWriteJournal(uid: uid, url: url, message: expected)
+        let url: String
+        if case .set(let value) = operation { url = value } else { url = "" }
+        var journal = prior ?? URLWriteJournal(uid: uid, url: url, message: expected, clearsURL: operation.isClear ? true : nil)
         progress("名刺を準備しています")
         try await sleep(1.5)
         try await mailbox.setEnabled(true)
@@ -66,7 +72,7 @@ enum URLWriter {
             // have paused its Mailbox after the PREPARE ACK was read.
             try store.save(journal)
             try await mailbox.setEnabled(false)
-            progress("URLを書き込んでいます")
+            progress(operation.isClear ? "URLをクリアしています" : "URLを書き込んでいます")
             let memory = try await mailbox.readMemory()
             if let writes = journal.writes, let original = journal.originalMemory {
                 try validateReplay(memory: memory, original: original, writes: writes)

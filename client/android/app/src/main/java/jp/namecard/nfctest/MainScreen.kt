@@ -79,6 +79,8 @@ internal fun MainScreen(
     onExportEditor: () -> Unit,
     onWriteEditor: () -> Unit,
     onWriteUrl: (String) -> Unit,
+    onClearUrl: () -> Unit,
+    onAddQrCode: (QrCode) -> Unit,
     onImportCard: () -> Unit,
     onWriteCard: (LibraryCard) -> Unit,
     onEditCard: (LibraryCard) -> Unit,
@@ -135,6 +137,8 @@ internal fun MainScreen(
                 onExportBin = onExportEditor,
                 onWrite = onWriteEditor,
                 onWriteUrl = onWriteUrl,
+                onClearUrl = onClearUrl,
+                onAddQrCode = onAddQrCode,
                 modifier = Modifier.padding(innerPadding),
             )
 
@@ -434,6 +438,8 @@ private fun PreviewMainScreen(selectedTab: AppTab) {
             onExportEditor = {},
             onWriteEditor = {},
             onWriteUrl = {},
+            onClearUrl = {},
+            onAddQrCode = {},
             onImportCard = {},
             onWriteCard = {},
             onEditCard = {},
