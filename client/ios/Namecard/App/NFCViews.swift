@@ -33,10 +33,10 @@ struct NFCSettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            if model.nfc.recoveryURL != nil {
-                Section("未完了のURL設定") {
+            if let recovery = model.nfc.recoveryURL {
+                Section(recovery.isClear ? "未完了のURLクリア" : "未完了のURL設定") {
                     Text("前回の名刺を用意して再開してください。")
-                    Button("URL設定を再開") { model.nfc.resumeURL() }.disabled(model.nfc.isBusy)
+                    Button(recovery.isClear ? "URLクリアを再開" : "URL設定を再開") { model.nfc.resumeURL() }.disabled(model.nfc.isBusy)
                 }
             }
             Section("本体の確認") {

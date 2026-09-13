@@ -40,6 +40,7 @@ internal class EditorCanvasState {
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
         colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0f) })
     }
+    private val pixelBitmapPaint = Paint()
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.BLACK
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
@@ -114,6 +115,20 @@ internal class EditorCanvasState {
             paperHeight / 2f,
             bitmap.width * fit,
             bitmap.height * fit,
+        )
+        selectedIndex = layers.lastIndex
+        changed()
+    }
+
+    fun addQrCode(bitmap: Bitmap) {
+        require(bitmap.width == bitmap.height && bitmap.width <= 120)
+        recordChange()
+        ownedBitmaps += bitmap
+        // Align the edges to native pixels even when the QR has an odd size.
+        layers += Layer.image(
+            bitmap, ((paperWidth - bitmap.width) / 2).toInt() + bitmap.width / 2f,
+            ((paperHeight - bitmap.height) / 2).toInt() + bitmap.height / 2f,
+            bitmap.width.toFloat(), bitmap.height.toFloat(), pixelated = true,
         )
         selectedIndex = layers.lastIndex
         changed()
@@ -340,7 +355,7 @@ internal class EditorCanvasState {
 
     private fun drawLayer(canvas: Canvas, layer: Layer) {
         layer.bitmap?.let { bitmap ->
-            canvas.drawBitmap(bitmap, null, layer.bounds(textPaint), bitmapPaint)
+            canvas.drawBitmap(bitmap, null, layer.bounds(textPaint), if (layer.pixelated) pixelBitmapPaint else bitmapPaint)
             return
         }
         val text = layer.text ?: return
@@ -514,6 +529,7 @@ internal class EditorCanvasState {
         var height: Float = 0f,
         var textSize: Float = 0f,
         var rotationDegrees: Float = 0f,
+        val pixelated: Boolean = false,
     ) {
         fun bounds(paint: Paint): RectF {
             if (bitmap != null) {
@@ -578,12 +594,13 @@ internal class EditorCanvasState {
                 textSize = 24f,
             )
 
-            fun image(bitmap: Bitmap, x: Float, y: Float, width: Float, height: Float) = Layer(
+            fun image(bitmap: Bitmap, x: Float, y: Float, width: Float, height: Float, pixelated: Boolean = false) = Layer(
                 bitmap = bitmap,
                 centerX = x,
                 centerY = y,
                 width = width,
                 height = height,
+                pixelated = pixelated,
             )
         }
     }

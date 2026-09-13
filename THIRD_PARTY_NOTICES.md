@@ -14,7 +14,7 @@
 
 ## Google Material Symbols
 
-`client/android/app/src/main/res/drawable/ic_*.xml`のアイコンはGoogle Material Symbolsを元にしたAndroid Vector Drawableで、Apache License 2.0の対象です。
+`client/android/app/src/main/res/drawable/ic_*.xml`のアイコン（独自作成の`ic_qr_code.xml`を除く）はGoogle Material Symbolsを元にしたAndroid Vector Drawableで、Apache License 2.0の対象です。
 
 - Source: <https://github.com/google/material-design-icons>
 - License: <https://www.apache.org/licenses/LICENSE-2.0>
@@ -22,3 +22,9 @@
 ## External dependencies
 
 Androidアプリおよびファームウェアのビルド時に取得される外部依存関係は、それぞれの配布元ライセンスに従います。
+
+### ZXing Core
+
+- AndroidのQRコード生成に`com.google.zxing:core:3.5.4`を使用します。
+- Source: <https://github.com/zxing/zxing/tree/zxing-3.5.4>
+- License: Apache License 2.0。本文はAPK内の`assets/licenses/zxing-core.txt`に同梱します。

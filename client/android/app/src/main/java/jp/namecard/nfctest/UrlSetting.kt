@@ -2,6 +2,20 @@ package jp.namecard.nfctest
 
 import java.net.URI
 
+/** Clearing is explicit: an empty input must never erase a card by accident. */
+internal sealed interface UrlUpdate {
+    data class Set(val url: String) : UrlUpdate
+    data object Clear : UrlUpdate
+
+    val title: String get() = if (this == Clear) "URLクリア" else "URL設定"
+    val action: String get() = if (this == Clear) "URLクリア" else "URL書き込み"
+    val touchPrompt: String get() = if (this == Clear) {
+        "URLをクリアする名刺へタッチしてください。"
+    } else {
+        "URLを書き込む名刺へタッチしてください。"
+    }
+}
+
 internal data class UrlInputResult(
     val normalizedUrl: String? = null,
     val error: String? = null,

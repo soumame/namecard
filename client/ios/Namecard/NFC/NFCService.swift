@@ -19,7 +19,7 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
     var responseMS = 0
     var issues = 0
     var log = ""
-    var recoveryURL: String?
+    var recoveryURL: URLUpdate?
     let hapticGuide = NFCHapticGuide()
     var isBusy: Bool { isScanning || isPreparing }
     var supportsNFC: Bool { NFCTagReaderSession.readingAvailable }
@@ -42,7 +42,7 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
     @ObservationIgnored private var progressUpdatedAt: TimeInterval = -.infinity
     @ObservationIgnored private var lastProgressPhase: TransferProgress.Phase?
     @ObservationIgnored private let logStartedAt = ProcessInfo.processInfo.systemUptime
-    private enum Request: Sendable { case transfer, url(String), status }
+    private enum Request: Sendable { case transfer, url(URLUpdate), status }
 
     init(directory: URL) {
         journalStore = URLJournalStore(file: directory.appendingPathComponent("url-write-journal.json"))
@@ -89,17 +89,17 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
         // EEPROM recovery still takes precedence because STATUS re-enables FTM.
         prepare { .status }
     }
-    func writeURL(_ url: String) {
+    func updateURL(_ operation: URLUpdate) {
         prepare(allowURLRecovery: true) {
-            let normalized = try URLCodec.normalize(url)
-            _ = try URLCodec.ndefMessage(for: normalized)
-            if let old = try self.journalStore.load(), old.url != normalized {
-                throw AppFailure("未完了のURL設定を元の名刺で再開してください。")
+            let normalized = try operation.normalized()
+            let expected = try normalized.ndefMessage()
+            if let old = try self.journalStore.load(), old.operation != normalized || old.message != expected {
+                throw AppFailure("未完了のURL操作を元の名刺で再開してください。")
             }
             return .url(normalized)
         }
     }
-    func resumeURL() { if let recoveryURL { writeURL(recoveryURL) } }
+    func resumeURL() { if let recoveryURL { updateURL(recoveryURL) } }
     func resume() {
         guard !isBusy, let pendingWrite else { return }
         begin(pendingWrite)
@@ -118,7 +118,7 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
             defer { isPreparing = false }
             do {
                 if !allowURLRecovery, try journalStore.load() != nil {
-                    throw AppFailure("先に未完了のURL設定を元の名刺で再開してください。")
+                    throw AppFailure("先に未完了のURL操作を元の名刺で再開してください。")
                 }
                 let selected = try await work()
                 switch selected {
@@ -325,7 +325,7 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
                     guard isCurrent(session, token: token), !Task.isCancelled else { return }
                     refreshJournal()
                     pendingWrite = retainedTransfer ? .transfer : nil
-                    complete("URLを書き込み、読み返して確認しました。", session: session)
+                    complete(url.isClear ? "URLをクリアし、読み返して確認しました。" : "URLを書き込み、読み返して確認しました。", session: session)
                 case .status:
                     setMessage("MCU起動のため1.5秒待ちます。端末を固定してください。")
                     try await Task.sleep(for: .milliseconds(1500))
@@ -425,7 +425,7 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
         appendLog(message)
     }
     private func refreshJournal() {
-        do { recoveryURL = try journalStore.load()?.url }
+        do { recoveryURL = try journalStore.load()?.operation }
         catch {
             let detail = "URLの復旧記録を読み込めません: \(error.localizedDescription)"
             if sessionEndReason == nil && !succeeded { message = detail }

@@ -1,5 +1,27 @@
 import Foundation
 
+/// A clear operation is explicit; blank URL input still fails validation.
+public enum URLUpdate: Sendable, Equatable {
+    case set(String)
+    case clear
+
+    public var isClear: Bool { self == .clear }
+
+    public func normalized() throws -> URLUpdate {
+        switch self {
+        case .set(let input): return .set(try URLCodec.normalize(input))
+        case .clear: return .clear
+        }
+    }
+
+    public func ndefMessage() throws -> Data {
+        switch self {
+        case .set(let input): return try URLCodec.ndefMessage(for: input)
+        case .clear: return URLCodec.emptyNDEFMessage
+        }
+    }
+}
+
 public enum URLCodecError: Error, LocalizedError {
     case empty, whitespace, scheme, host, invalidURL, tooLong, malformedType5, unsafeFormatting
     public var errorDescription: String? {
@@ -40,6 +62,9 @@ public struct Type5BlockWrite: Codable, Sendable, Equatable {
 
 public enum URLCodec {
     public static let maxNDEFBytes = 480
+    /// MB | ME | SR, TNF_EMPTY, zero type and payload lengths. No URI remains
+    /// in the active NDEF message; the tag stays readable and writable.
+    public static let emptyNDEFMessage = Data([0xd0, 0, 0])
 
     /// Matches Android UrlSetting: preserve existing escapes, ASCII-encode Unicode
     /// paths, allow bare hosts with ports, and reject non-HTTP schemes.

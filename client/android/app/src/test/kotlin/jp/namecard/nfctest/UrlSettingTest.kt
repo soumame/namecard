@@ -34,6 +34,8 @@ class UrlSettingTest {
 
     @Test
     fun rejectsNonWebSchemeAndWhitespace() {
+        assertFalse(validateUrlInput("").isValid)
+        assertFalse(validateUrlInput(" \n").isValid)
         assertFalse(validateUrlInput("mailto:test@example.com").isValid)
         assertFalse(validateUrlInput("https://example.com/a b").isValid)
         assertFalse(validateUrlInput("https://@").isValid)
@@ -64,5 +66,16 @@ class UrlSettingTest {
         val memory = byteArrayOf(0xe1.toByte(), 0x40, 0x40, 0x00, 0x03, 0x08, 0x01)
 
         assertNull(extractType5NdefMessage(memory))
+    }
+
+    @Test
+    fun clearedNdefReadbackDoesNotIncludeOldUriBytes() {
+        // Clearing shortens the active NDEF message; EEPROM beyond its TLV may
+        // still contain bytes from the former URI. Verify only the active record.
+        val emptyRecord = byteArrayOf(0xd0.toByte(), 0, 0)
+        val memory = byteArrayOf(0xe1.toByte(), 0x40, 0x40, 0, 3, 3) +
+            emptyRecord + byteArrayOf(0xfe.toByte()) + "old.example.com".toByteArray()
+        assertArrayEquals(emptyRecord, extractType5NdefMessage(memory))
+        assertNull(extractType5NdefMessage(memory.copyOf(8)))
     }
 }

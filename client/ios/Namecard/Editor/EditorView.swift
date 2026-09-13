@@ -8,16 +8,17 @@ struct EditorView: View {
     let onSave: (Data, ImageFormat) -> Void
     let onExport: (Data, ImageFormat) -> Void
     let onWrite: (Data, ImageFormat) -> Void
-    let onURL: (String) -> Void
+    let onURL: (URLUpdate) -> Void
     var writeUnavailableReason: String? = nil
 
     @State private var photo: PhotosPickerItem?
     @State private var importingImage = false
     @State private var addingText = false
     @State private var settingURL = false
+    @State private var creatingQRCode = false
     @State private var confirmingClear = false
     @State private var urlInput = ""
-    @State private var confirmedURL: String?
+    @State private var confirmedURL: URLUpdate?
     @State private var errorMessage: String?
     private struct Preview: Identifiable {
         let id = UUID()
@@ -129,10 +130,14 @@ struct EditorView: View {
             TextEntrySheet(title: "URLを設定", prompt: "https://example.com",
                            explanation: "通常のタッチで開くURLを設定します。http://・https://がない場合はhttps://を付けます。",
                            confirmationTitle: "書き込む", fieldIdentifier: "editor.url",
-                           confirmationIdentifier: "editor.confirmURL", initialValue: urlInput, isURL: true) {
+                           confirmationIdentifier: "editor.confirmURL", initialValue: urlInput, isURL: true,
+                           onClearURL: { confirmedURL = .clear }) {
                 urlInput = $0
-                confirmedURL = $0
+                confirmedURL = .set($0)
             }
+        }
+        .sheet(isPresented: $creatingQRCode) {
+            QRCodeSheet(onAdd: model.addQRCode)
         }
         .confirmationDialog("すべての要素を消去しますか？", isPresented: $confirmingClear, titleVisibility: .visible) {
             Button("全消去", role: .destructive, action: model.clear)
@@ -197,6 +202,8 @@ struct EditorView: View {
                         .accessibilityIdentifier("editor.addText")
                     Button { settingURL = true } label: { toolLabel("URL", symbol: "link") }
                         .accessibilityIdentifier("editor.setURL")
+                    Button { creatingQRCode = true } label: { toolLabel("QRコード", symbol: "qrcode") }
+                        .accessibilityIdentifier("editor.qrCode")
                     Button(action: model.moveBackward) { toolLabel("背面へ", symbol: "square.3.layers.3d.bottom.filled") }
                         .disabled(!model.canMoveBackward)
                     Button(action: model.moveForward) { toolLabel("前面へ", symbol: "square.3.layers.3d.top.filled") }

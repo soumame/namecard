@@ -9,6 +9,7 @@ struct TextEntrySheet: View {
     let fieldIdentifier: String
     let confirmationIdentifier: String
     let isURL: Bool
+    let onClearURL: (() -> Void)?
     let onConfirm: (String) -> Void
 
     @State private var value: String
@@ -17,7 +18,7 @@ struct TextEntrySheet: View {
 
     init(title: String, prompt: String, explanation: String = "", confirmationTitle: String,
          fieldIdentifier: String, confirmationIdentifier: String, initialValue: String = "",
-         isURL: Bool = false, onConfirm: @escaping (String) -> Void) {
+         isURL: Bool = false, onClearURL: (() -> Void)? = nil, onConfirm: @escaping (String) -> Void) {
         self.title = title
         self.prompt = prompt
         self.explanation = explanation
@@ -25,6 +26,7 @@ struct TextEntrySheet: View {
         self.fieldIdentifier = fieldIdentifier
         self.confirmationIdentifier = confirmationIdentifier
         self.isURL = isURL
+        self.onClearURL = onClearURL
         self.onConfirm = onConfirm
         _value = State(initialValue: initialValue)
     }
@@ -43,6 +45,17 @@ struct TextEntrySheet: View {
                         .accessibilityIdentifier(fieldIdentifier)
                 } footer: {
                     if !explanation.isEmpty { Text(explanation) }
+                }
+                if let onClearURL {
+                    Section {
+                        Button("URLをクリア", role: .destructive) {
+                            onClearURL()
+                            dismiss()
+                        }
+                        .accessibilityIdentifier("editor.clearURL")
+                    } footer: {
+                        Text("名刺のURLを削除し、タッチしてもURLが開かないようにします。画像更新やURLの再設定は引き続き使えます。")
+                    }
                 }
             }
             .navigationTitle(title)

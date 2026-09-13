@@ -30,6 +30,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,6 +91,8 @@ internal fun EditorScreen(
     onExportBin: () -> Unit,
     onWrite: () -> Unit,
     onWriteUrl: (String) -> Unit,
+    onClearUrl: () -> Unit,
+    onAddQrCode: (QrCode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showFormatDialog by remember { mutableStateOf(false) }
@@ -97,6 +100,7 @@ internal fun EditorScreen(
     var showTextDialog by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
     var showUrlDialog by remember { mutableStateOf(false) }
+    var showQrDialog by remember { mutableStateOf(false) }
     var textInput by remember { mutableStateOf("") }
     var cardName by remember { mutableStateOf("") }
     var urlInput by remember { mutableStateOf("") }
@@ -335,6 +339,12 @@ internal fun EditorScreen(
                         onClick = { showUrlDialog = true },
                     )
                     EditorToolButton(
+                        label = "QRコード",
+                        iconRes = R.drawable.ic_qr_code,
+                        enabled = state.controlsEnabled,
+                        onClick = { showQrDialog = true },
+                    )
+                    EditorToolButton(
                         label = "背面へ",
                         iconRes = R.drawable.ic_flip_to_back,
                         enabled = state.controlsEnabled && hasSelection,
@@ -469,13 +479,24 @@ internal fun EditorScreen(
         )
     }
 
+    if (showQrDialog) {
+        QrCodeDialog(
+            controlsEnabled = state.controlsEnabled,
+            onAdd = onAddQrCode,
+            onDismiss = { showQrDialog = false },
+        )
+    }
+
     if (showUrlDialog) {
         val validation = validateUrlInput(urlInput)
         AlertDialog(
             onDismissRequest = { showUrlDialog = false },
             title = { Text("URLを設定") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Text(
                         "名刺を通常どおりタッチしたときに開くURLを書き込みます。",
                         style = MaterialTheme.typography.bodyMedium,
@@ -498,6 +519,20 @@ internal fun EditorScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Text(
+                        "URLをクリアすると、タッチしてもURLが開かなくなります。画像更新やURLの再設定は引き続き使えます。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(
+                        onClick = {
+                            showUrlDialog = false
+                            onClearUrl()
+                        },
+                        enabled = state.controlsEnabled,
+                    ) {
+                        Text("URLをクリア", color = MaterialTheme.colorScheme.error)
+                    }
                 }
             },
             confirmButton = {
@@ -506,7 +541,7 @@ internal fun EditorScreen(
                         onWriteUrl(requireNotNull(validation.normalizedUrl))
                         showUrlDialog = false
                     },
-                    enabled = validation.isValid,
+                    enabled = state.controlsEnabled && validation.isValid,
                 ) {
                     Text("カードに書き込む")
                 }
@@ -748,6 +783,8 @@ private fun EditorScreenPreview() {
                 onExportBin = {},
                 onWrite = {},
                 onWriteUrl = {},
+                onClearUrl = {},
+                onAddQrCode = {},
                 modifier = Modifier.padding(innerPadding),
             )
         }
