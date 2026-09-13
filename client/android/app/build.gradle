@@ -23,11 +23,17 @@ if (releaseSigningValues.any { it != null && !it.isBlank() } && !releaseSigningC
 android {
     namespace = "jp.namecard.nfctest"
     compileSdk = 35
+    // Platform instrumentation tests use the SDK's optional JUnit3 APIs.
+    useLibrary "android.test.base", false
+    useLibrary "android.test.runner", false
 
     defaultConfig {
         applicationId = "work.tokumaru.namecard"
         minSdk = 26
         targetSdk = 35
+        testInstrumentationRunner = "android.test.InstrumentationTestRunner"
+        // Avoid the legacy runner scanning every Compose/app class during discovery.
+        testInstrumentationRunnerArguments = ["class": "jp.namecard.nfctest.EditorTextRenderingTest"]
         versionCode = (System.getenv("NAMECARD_VERSION_CODE") ?: "17").toInteger()
         versionName = System.getenv("NAMECARD_VERSION_NAME") ?: "0.17"
     }

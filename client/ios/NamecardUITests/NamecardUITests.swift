@@ -66,6 +66,75 @@ final class NamecardUITests: XCTestCase {
         XCTAssertFalse(redo.isEnabled)
     }
 
+    func testTextFormattingAndSystemFontPickerBeforeAdding() {
+        app.buttons["editor.addText"].tap()
+        let field = app.textFields["editor.text"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        enterText("Namecard 日本語", in: field)
+        let bold = app.buttons["editor.text.bold"]
+        let italic = app.buttons["editor.text.italic"]
+        let underline = app.buttons["editor.text.underline"]
+        XCTAssertEqual(bold.value as? String, "オン")
+        bold.tap()
+        italic.tap()
+        underline.tap()
+        XCTAssertEqual(bold.value as? String, "オフ")
+        XCTAssertEqual(italic.value as? String, "オン")
+        XCTAssertEqual(underline.value as? String, "オン")
+        let keyboardScreenshot = XCTAttachment(screenshot: app.screenshot())
+        keyboardScreenshot.name = "テキスト書式とキーボード"
+        keyboardScreenshot.lifetime = .keepAlways
+        add(keyboardScreenshot)
+        app.buttons["editor.text.font"].tap()
+        let family = app.buttons["editor.text.font.Courier New"]
+        let search = app.searchFields.firstMatch
+        search.tap()
+        search.typeText("Courier")
+        XCTAssertTrue(family.waitForExistence(timeout: 3))
+        family.tap()
+        XCTAssertTrue(app.buttons["editor.text.font"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Courier New"].exists)
+        XCTAssertEqual(italic.value as? String, "オン")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "フォントと斜体・下線のプレビュー"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["editor.confirmText"].tap()
+        XCTAssertTrue(app.buttons["editor.undo"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled)
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(app.buttons["editor.redo"].isEnabled)
+        app.buttons["editor.redo"].tap()
+        app.buttons["editor.output"].tap()
+        app.buttons["プレビュー"].tap()
+        XCTAssertTrue(app.images["editor.previewImage"].waitForExistence(timeout: 3))
+    }
+
+    func testViewportRotationSnapTogglesIndependently() {
+        let rotation = app.buttons["editor.viewportRotationSnap"]
+        let objectRotation = app.buttons["editor.objectRotationSnap"]
+        // Querying an offscreen Liquid Glass button's hittability can throw before scrolling on iOS 26.
+        for _ in 0..<3 { app.scrollViews.firstMatch.swipeLeft() }
+        XCTAssertTrue(rotation.isHittable)
+        XCTAssertTrue(objectRotation.isHittable)
+        XCTAssertEqual(rotation.value as? String, "オフ")
+        XCTAssertEqual(objectRotation.value as? String, "オフ")
+        XCTAssertEqual(app.buttons["editor.positionSnap"].value as? String, "オフ")
+        objectRotation.tap()
+        XCTAssertEqual(objectRotation.value as? String, "オン")
+        XCTAssertEqual(rotation.value as? String, "オフ")
+        rotation.tap()
+        XCTAssertEqual(rotation.value as? String, "オン")
+        XCTAssertEqual(objectRotation.value as? String, "オン")
+        XCTAssertEqual(app.buttons["editor.positionSnap"].value as? String, "オフ")
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled)
+        objectRotation.tap()
+        XCTAssertEqual(objectRotation.value as? String, "オフ")
+        XCTAssertEqual(rotation.value as? String, "オン")
+        rotation.tap()
+        XCTAssertEqual(rotation.value as? String, "オフ")
+    }
+
     func testGray4WriteDisabledButSaveAvailable() {
         app.buttons["editor.format"].tap()
         app.buttons["4階調"].firstMatch.tap()

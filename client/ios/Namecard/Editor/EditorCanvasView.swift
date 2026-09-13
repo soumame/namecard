@@ -60,6 +60,7 @@ final class PaperCanvasUIView: UIView {
             } else {
                 model.deselect()
                 target = .viewport
+                model.viewport.beginTransform()
             }
         }
         activeTouches.formUnion(touches)
@@ -103,7 +104,8 @@ final class PaperCanvasUIView: UIView {
             model.transformSelection(pan: CGPoint(x: paperPan.width, y: paperPan.height),
                                      zoom: zoom, rotation: rotation)
         case .viewport:
-            model.viewport.apply(pan: pan, zoom: zoom, rotation: rotation, focus: before, size: bounds.size)
+            model.viewport.apply(pan: pan, zoom: zoom, rotation: rotation, focus: before, size: bounds.size,
+                                 rotationSnapEnabled: model.viewportRotationSnapEnabled)
         }
         previousPoints = current
         setNeedsDisplay()
@@ -121,6 +123,7 @@ final class PaperCanvasUIView: UIView {
         activeTouches.subtract(touches)
         if activeTouches.isEmpty {
             if target == .layer { model.endTransform() }
+            if target == .viewport { model.viewport.endTransform() }
             target = .none
         }
         refreshPoints()

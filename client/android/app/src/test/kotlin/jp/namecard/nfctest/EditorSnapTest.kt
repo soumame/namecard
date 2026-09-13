@@ -6,6 +6,16 @@ import org.junit.Test
 
 class EditorSnapTest {
     @Test
+    fun rotationSnapUsesInclusiveThresholdAndNormalizesBothDirections() {
+        for ((angle, expected) in listOf(
+            4f to 0f, 4.1f to 4.1f, 11f to 15f, -11f to -15f,
+            179f to -180f, -179f to -180f, 374f to 15f,
+        )) {
+            assertEquals(expected, snapEditorRotationDegrees(angle), 0.0001f)
+        }
+    }
+
+    @Test
     fun alignmentSnapChoosesClosestCandidateInsideThreshold() {
         val candidates = listOf(0f, 64f, 96f, 128f)
 
