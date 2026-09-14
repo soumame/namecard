@@ -20,7 +20,7 @@ final class URLWriterTests: XCTestCase {
         defer { clean(store) }
         let tag = try MockURLTag(formatted: true)
         try await clear(tag, store)
-        XCTAssertEqual(tag.events, ["enable", "prepare", "disable", "read", "ndefStatus", "writeNDEF", "read", "enable"])
+        XCTAssertEqual(tag.events, ["startup", "prepare", "disable", "ndefStatus", "writeNDEF", "readNDEF", "enable"])
         let bytes = try XCTUnwrap(URLCodec.type5NDEF(in: tag.memory))
         let message = try XCTUnwrap(NFCNDEFMessage(data: bytes))
         XCTAssertEqual(message.records.count, 1)
@@ -129,7 +129,7 @@ final class URLWriterTests: XCTestCase {
         defer { clean(store) }
         let tag = try MockURLTag(formatted: true)
         try await write(tag, store)
-        XCTAssertEqual(tag.events, ["enable", "prepare", "disable", "read", "ndefStatus", "writeNDEF", "read", "enable"])
+        XCTAssertEqual(tag.events, ["startup", "prepare", "disable", "ndefStatus", "writeNDEF", "readNDEF", "enable"])
         XCTAssertEqual(try URLCodec.type5NDEF(in: tag.memory), try URLCodec.ndefMessage(for: targetURL))
         XCTAssertNil(try store.load())
     }
@@ -140,7 +140,7 @@ final class URLWriterTests: XCTestCase {
         let tag = try MockURLTag(formatted: true)
         tag.unsupportedPrepare = true
         await expectFailure { try await self.write(tag, store) }
-        XCTAssertEqual(tag.events, ["enable", "prepare", "enable"])
+        XCTAssertEqual(tag.events, ["startup", "prepare", "enable"])
         XCTAssertNil(try store.load())
     }
 
@@ -152,7 +152,7 @@ final class URLWriterTests: XCTestCase {
         await expectFailure { try await self.write(tag, store) }
         XCTAssertEqual(tag.events.last, "enable")
         XCTAssertEqual(try store.load()?.uid, tag.identifier)
-        XCTAssertFalse(tag.events.suffix(2).contains("read"))
+        XCTAssertFalse(tag.events.contains("readNDEF"))
     }
 
     func testPreWriteRefusalDoesNotTrapOtherOperationsBehindJournal() async throws {
@@ -196,7 +196,7 @@ final class URLWriterTests: XCTestCase {
         try Data([1]).write(to: parent)
         let tag = try MockURLTag(formatted: true)
         await expectFailure { try await self.write(tag, store) }
-        XCTAssertEqual(tag.events, ["enable", "prepare", "enable"])
+        XCTAssertEqual(tag.events, ["startup", "prepare", "enable"])
     }
 
     func testBlankInitializationResumesAfterPowerLossOnlyOnSameUID() async throws {
@@ -259,6 +259,43 @@ final class URLWriterTests: XCTestCase {
         XCTAssertNotNil(try store.load())
     }
 
+    func testConnectionLostAfterWriteKeepsJournalAndResumesWithoutAnotherWrite() async throws {
+        let store = makeStore()
+        defer { clean(store) }
+        let tag = try MockURLTag(formatted: true)
+        tag.loseConnectionAfterWrite = true
+        do {
+            try await write(tag, store)
+            XCTFail("Disconnected tag succeeded")
+        } catch {
+            guard case MailboxTransportError.connectionLost = error else { return XCTFail("Wrong error: \(error)") }
+        }
+        XCTAssertEqual(try store.load()?.uid, tag.identifier)
+        XCTAssertEqual(try URLCodec.type5NDEF(in: tag.memory), try URLCodec.ndefMessage(for: targetURL))
+
+        let other = try MockURLTag(formatted: true, identifier: Data([9]))
+        await expectFailure { try await self.write(other, store) }
+        XCTAssertTrue(other.events.isEmpty)
+
+        // A rediscovered tag is a fresh transport object with the same EEPROM.
+        let reconnected = try MockURLTag(formatted: true)
+        reconnected.memory = tag.memory
+        try await write(reconnected, store)
+        XCTAssertFalse(reconnected.events.contains("writeNDEF"))
+        XCTAssertFalse(reconnected.events.contains("read"))
+        XCTAssertNil(try store.load())
+    }
+
+    func testStartupFailureNeverPreparesOrWritesEEPROM() async throws {
+        let store = makeStore()
+        defer { clean(store) }
+        let tag = try MockURLTag(formatted: true)
+        tag.isAvailable = false
+        await expectFailure { try await self.write(tag, store) }
+        XCTAssertEqual(tag.events, ["startup"])
+        XCTAssertNil(try store.load())
+    }
+
     private let targetURL = "https://example.com/namecard"
     private func clear(_ tag: MockURLTag, _ store: URLJournalStore) async throws {
         try await URLWriter.write(.clear, mailbox: tag, store: store, sleep: { _ in }, progress: { _ in })
@@ -288,6 +325,8 @@ private final class MockURLTag: URLTagTransport, @unchecked Sendable {
     var failBlockNumber: Int?
     var allBlocksWritable = true
     var overriddenStatus: URLMemoryStatus?
+    var isAvailable = true
+    var loseConnectionAfterWrite = false
     private let formatted: Bool
     private var prepared = false
 
@@ -296,12 +335,17 @@ private final class MockURLTag: URLTagTransport, @unchecked Sendable {
         self.identifier = identifier
         if formatted { try putMessage(URLCodec.ndefMessage(for: "https://old.example.com")) }
     }
-    func checkConnection() throws { }
+    func checkConnection() throws {
+        guard isAvailable else { throw MailboxTransportError.connectionLost("isAvailable=false") }
+    }
+    func prepareForURL() async throws { events.append("startup"); try checkConnection() }
     func setEnabled(_ enabled: Bool) async throws {
         events.append(enabled ? "enable" : "disable")
+        try checkConnection()
         if enabled && prepared && failRestore { throw AppFailure("restore failure") }
     }
     func exchange(_ frame: NCFrame, timeout: TimeInterval) async throws -> NCAck {
+        try checkConnection()
         XCTAssertEqual(frame.type, NCCommand.ndefWritePrepare.rawValue)
         events.append("prepare")
         prepared = true
@@ -317,19 +361,28 @@ private final class MockURLTag: URLTagTransport, @unchecked Sendable {
         raw[12] = UInt8(truncatingIfNeeded: headerCRC); raw[13] = UInt8(headerCRC >> 8)
         return try NCAck(data: raw, request: frame)
     }
-    func readMemory() async throws -> Data { events.append("read"); return memory }
+    func readMemory() async throws -> Data { events.append("read"); try checkConnection(); return memory }
+    func readNDEFMessage() async throws -> Data? {
+        events.append("readNDEF")
+        try checkConnection()
+        return try URLCodec.type5NDEF(in: memory)
+    }
     func blankIdentity() async throws -> Type5Identity {
+        try checkConnection()
         events.append("identity")
         return identity(writable: allBlocksWritable)
     }
-    func ndefStatus() async throws -> URLMemoryStatus { events.append("ndefStatus"); return overriddenStatus ?? (formatted ? .readWrite(480) : .notSupported) }
+    func ndefStatus() async throws -> URLMemoryStatus { events.append("ndefStatus"); try checkConnection(); return overriddenStatus ?? (formatted ? .readWrite(480) : .notSupported) }
     func writeMessage(_ message: Data) async throws {
         events.append("writeNDEF")
+        try checkConnection()
         if failWrite { throw AppFailure("write failure") }
         if !ignoreWrite { try putMessage(message) }
+        if loseConnectionAfterWrite { isAvailable = false }
     }
     func writeBlock(_ write: Type5BlockWrite) async throws {
         events.append("block\(write.block)")
+        try checkConnection()
         if write.block == failBlockNumber { throw AppFailure("power loss") }
         memory.replaceSubrange((write.block * 4)..<(write.block * 4 + 4), with: write.bytes)
     }

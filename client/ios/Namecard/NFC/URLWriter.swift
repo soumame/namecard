@@ -6,9 +6,11 @@ enum URLMemoryStatus { case readWrite(Int), readOnly, notSupported }
 protocol URLTagTransport: Sendable {
     var identifier: Data { get }
     func checkConnection() throws
+    func prepareForURL() async throws
     func setEnabled(_ enabled: Bool) async throws
     func exchange(_ frame: NCFrame, timeout: TimeInterval) async throws -> NCAck
     func readMemory() async throws -> Data
+    func readNDEFMessage() async throws -> Data?
     func blankIdentity() async throws -> Type5Identity
     func ndefStatus() async throws -> URLMemoryStatus
     func writeMessage(_ message: Data) async throws
@@ -60,8 +62,8 @@ enum URLWriter {
         if case .set(let value) = operation { url = value } else { url = "" }
         var journal = prior ?? URLWriteJournal(uid: uid, url: url, message: expected, clearsURL: operation.isClear ? true : nil)
         progress("名刺を準備しています")
-        try await sleep(1.5)
-        try await mailbox.setEnabled(true)
+        try await sleep(4)
+        try await mailbox.prepareForURL()
         let request = NCFrame(command: .ndefWritePrepare, transferID: UInt16.random(in: 1...UInt16.max))
         var writeMayHaveStarted = false
         do {
@@ -72,13 +74,14 @@ enum URLWriter {
             // have paused its Mailbox after the PREPARE ACK was read.
             try store.save(journal)
             try await mailbox.setEnabled(false)
-            progress(operation.isClear ? "URLをクリアしています" : "URLを書き込んでいます")
-            let memory = try await mailbox.readMemory()
+            progress("URLの保存領域を確認しています")
             if let writes = journal.writes, let original = journal.originalMemory {
+                let memory = try await mailbox.readMemory()
                 try validateReplay(memory: memory, original: original, writes: writes)
                 let identity = try await mailbox.blankIdentity()
                 let canonical = try URLCodec.blankType5WritePlan(memory: original, message: expected, identity: identity)
                 guard writes == canonical else { throw AppFailure("URLの復旧記録が不正です。初期化を停止しました。") }
+                progress("URLの初期化を再開しています")
                 writeMayHaveStarted = true
                 try await apply(writes, mailbox: mailbox)
             } else {
@@ -86,14 +89,24 @@ enum URLWriter {
                 switch status {
                 case .readWrite(let capacity):
                     guard expected.count <= capacity else { throw AppFailure("URLが名刺の保存容量を超えています。") }
+                    // After a lost write/verification response, avoid writing
+                    // again if the same UID already contains the intended NDEF.
+                    var alreadyWritten = false
+                    if prior != nil {
+                        do { alreadyWritten = try await mailbox.readNDEFMessage() == expected }
+                        catch URLCodecError.malformedType5 { /* Interrupted NDEF; rewrite below. */ }
+                    }
+                    progress(operation.isClear ? "URLをクリアしています" : "URLを書き込んでいます")
                     writeMayHaveStarted = true
-                    try await mailbox.writeMessage(expected)
+                    if !alreadyWritten { try await mailbox.writeMessage(expected) }
                 case .notSupported:
+                    let memory = try await mailbox.readMemory()
                     let identity = try await mailbox.blankIdentity()
                     let writes = try URLCodec.blankType5WritePlan(memory: memory, message: expected, identity: identity)
                     journal.originalMemory = memory
                     journal.writes = writes
                     try store.save(journal)
+                    progress("URLの保存領域を初期化しています")
                     writeMayHaveStarted = true
                     try await apply(writes, mailbox: mailbox)
                 case .readOnly:
@@ -101,10 +114,11 @@ enum URLWriter {
                 }
             }
             progress("URLを読み返して確認しています")
-            let actual = try await mailbox.readMemory()
-            guard try URLCodec.type5NDEF(in: actual) == expected else {
+            let actual = try await mailbox.readNDEFMessage()
+            guard actual == expected else {
                 throw AppFailure("URLの読み返しが一致しません。同じ名刺で再開してください。")
             }
+            progress("名刺の通信を再開しています")
             try await mailbox.setEnabled(true)
             try store.clear()
         } catch {

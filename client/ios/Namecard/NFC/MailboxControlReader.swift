@@ -7,6 +7,15 @@ enum MailboxControlReader {
     static func read(deadline: TimeInterval, clock: any TransferClock = SystemTransferClock(),
                      onRetry: @Sendable (Int) -> Void = { _ in },
                      operation: @Sendable () async throws -> UInt8) async throws -> UInt8 {
+        try await NFCReadRetry.read(deadline: deadline, clock: clock, onRetry: onRetry, operation: operation)
+    }
+}
+
+/// Only for reads without side effects. Never replay ACK reads or EEPROM writes.
+enum NFCReadRetry {
+    static func read<Value>(deadline: TimeInterval, clock: any TransferClock = SystemTransferClock(),
+                            onRetry: @Sendable (Int) -> Void = { _ in },
+                            operation: @Sendable () async throws -> Value) async throws -> Value {
         var attempt = 1
         while true {
             try Task.checkCancellation()
