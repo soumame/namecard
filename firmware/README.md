@@ -17,7 +17,7 @@ targetを一度だけ転送・Flash保存したあとFW内部で白→黒→白�
 文字やレイアウトの製品レンダリングはスマホ側で行い、MCUには汎用フォントや二画面分の
 画像RAMを持たせない。
 
-v4ではTPS63900でVRESを3.3Vへ昇降圧し、全NFCビルドを
+v4以降（現行製造版はv5）ではTPS63900でVRESを3.3Vへ昇降圧し、全NFCビルドを
 `3.20V充電完了 / 2.85V EPD ON後 / 2.80V更新直前`で統一する。
 旧基板向け2.50V閾値は使用しない。
 
@@ -54,7 +54,8 @@ cmake --preset nfc-fixed-one-shot
 cmake --build --preset nfc-fixed-one-shot
 ```
 
-生成物は各`build/<preset>/namecard_fw.{elf,hex,bin}`。リンカが次を強制する。
+生成物は原則`build/<preset>/namecard_fw.{elf,hex,bin}`。
+`external-power-self-test`だけは`build/self-test/`へ出力する（`CMakePresets.json`参照）。リンカが次を強制する。
 
 - アプリFlash 52KiB以下（末尾12KiBは表示画像2スロット）
 - 静的RAM 7KiB以下
@@ -114,10 +115,11 @@ python3 firmware/tools/namecard_protocol.py generate \
 python3 firmware/tools/namecard_protocol.py decode /tmp/namecard-frames/00-start.bin
 ```
 
-Maker Faire版の対応クライアントはAndroidのみとする。実機送信用のAndroid NFC-Vクライアントは
-[`client/android`](../client/android/README.md) にある。
-iPhoneは専用Core NFCアプリでEH可能なことを確認済みだが、署名・entitlementと別の
-検証工程が必要なため今回の製品サポート外とする。プロトコル自体はOS非依存のまま保つ。
+Android NFC-Vクライアントは[`client/android`](../client/android/README.md)、
+Core NFCを使うiOSクライアントは[`client/ios`](../client/ios/README.md)にある。
+iOSはTestFlightベータ配布中で、[事前登録フォーム](https://forms.gle/RqQPmfoJ9aMMtRm66)への回答後に参加リンクを送る。
+白黒更新・URL設定などを試せるが、4階調NFC書き込みと4階調から白黒への移行は無効。
+通常版公開に向けたiPhoneの給電・時間計測は継続中。プロトコル自体はOS非依存である。
 
 4736-byteの試験画像は次で生成できる。
 
@@ -141,14 +143,15 @@ EPD更新前に空きスロットへPREPARED保存し、BUSY完了後に別の64
 - PVD4の下降割り込みでPA6を即Low、EPD GPIOをAnalog化し、PA0保持を解放する。
 - BOR3（下降約2.5V）はOption Byte Taskで設定し、PVDより下の最終保護とする。
 - 画像4,736 bytesをCRC32まで検証する前にEPD電源を入れない。
-- 全NFCビルドで3.20Vを100ms維持、電源ON後2.85V、更新直前2.80Vを確認する。
-- 同テストでは296行を8行ずつ37回に分け、各Partialの間に再充電する。
+- 全NFCビルドで3.20Vを白黒は100ms、4階調は500ms維持し、電源ON後2.85V、更新直前2.80Vを確認する。
+- `nfc-fixed-test`では296行を8行ずつ37回に分け、各Partialの間に再充電する。
 - `nfc-fixed-one-shot`は同じ安全閾値と60秒充電待ちを使用し、全画面Partialを1回だけ行う。
-- 充電待ちは同テストのみ60秒、通常版は15秒。BUSY 2秒、EXECUTE ACK読取1秒。
+- 充電待ちは固定画像の2ビルドが60秒、通常版は15秒。更新後のBUSYはPartialで2秒、Full／4階調で5秒。
+  初期化・更新開始前のBUSY待ちは2秒、EXECUTE ACK読取は1秒。
 - 全ビルドのEPD BUSY中はSysTickを10Hzへ落とし、BUSY EXTIを主な復帰源にする。
-- 診断ビルドは100msごとにVREFINTを記録し、PVD割込みは電圧降下へ即応する。
+- PVD割込みはVREFINTの定期測定とは独立して電圧降下へ即応する。
 - SPI、BUSY、VDDの全エラー経路でDeep Sleepを試み、PA6をLowへ戻す。
-- 更新中は20msごとのVREFINT測定で最低VDDを保持する。
+- 最低VDDの連続測定は診断ビルドで行う。BUSY中は10HzのSysTickに合わせて通常約100ms間隔となり、短い降下の捕捉は保証しない。
 
 プロトコル仕様は [PROTOCOL.md](docs/PROTOCOL.md)、実機手順と合格条件は
 [TEST_PLAN.md](docs/TEST_PLAN.md) を参照。

@@ -18,7 +18,7 @@ Composeのpointer inputで処理する。NFCのブロッキングI/Oは`Dispatch
 各ピクセルを黒・濃灰・薄灰・白へ量子化し、4,736-byteのSSD1680 RAM planeを2枚送る。
 第1 planeはFWがFlashへ保存するため、途中でMCUが再起動しても第2 planeだけ再送できる。
 
-画像エディターまたは既存BINから書き込む場合、実パネルで前画面のゴーストが
+画像エディターまたは既存BINから白黒画像を書き込む場合、実パネルで前画面のゴーストが
 確認されたため、既定で`白 → 黒 → 白`の3回のPartialクリーニング後に
 本画像を更新する。v0.8対応FWでは画像を1回だけ転送・Flash保存し、FW内部で
 `白 → 黒 → 白 → 本画像`を連続実行する。中間画像のNFC転送とFlash書込みがなく、
@@ -167,9 +167,11 @@ SDK付属のテストランナーを使い、BIUと各フォントの描画・�
 対象クラスを指定してアプリ全体のテスト探索を避ける。複数端末を接続している場合は
 `ANDROID_SERIAL=emulator-5556 ./gradlew :app:connectedDebugAndroidTest`のように検証先を指定する。
 
-APKは`app/build/outputs/apk/debug/app-debug.apk`へ生成される。電源投入後の最初の
-Partialだけは物理画面が全面白である前提。内蔵パターンの連続試験中は、FWが直前の
-表示をRAMに保持するため、途中で`prepare-white`を実行する必要はない。
+APKは`app/build/outputs/apk/debug/app-debug.apk`へ生成される。現FWは直前の確定済み画像を
+STM32 Flashへ保存し、電源再投入後もPartial更新の基準画像として復元する。
+有効な保存画像がない場合だけ物理画面を全面白と仮定するため、未初期化基板は外部3.3Vで
+`factory-release`による`FW OK`表示、または`prepare-white`→`release`による全面白の初期化を行う。
+初期化済み基板では、内蔵パターンの連続試験の途中に`prepare-white`を実行する必要はない。
 VS Codeからは`Android: Build NFC test client`、USBデバッグ接続後は
 `Android: Install NFC test client`を選んでもよい。分割転送用のサンプルを端末へ
 用意するには`Android: Push sample native image`を実行し、アプリからDownload内の
@@ -203,9 +205,11 @@ Reader Modeのpresence check間隔は120秒に設定し、4階調の再充電中
 ## 初回プロビジョニングと切り分け
 
 新品のST25DVでは、Fast Transfer Modeの静的許可`MB_MODE`が初期値0、Energy
-Harvestingの`EH_MODE`が初期値1になっている。組み立てた基板ごとにST25公式アプリで
-RF configuration passwordを提示し、次を一度だけ保存する。工場出荷時の
-`RF_PWD_0`は8-byteすべて0である。
+Harvestingの`EH_MODE`が初期値1になっている。現FWの`release`／`factory-release`は、
+外部3.3Vでの初回起動時に次の静的設定を行い、読み返して確認する。設定済みの販売基板では再設定は不要。
+初期化手順は[FW README](../../firmware/README.md#vs-codeから書き込む)を参照する。
+手動で設定する場合はST25公式アプリでRF configuration passwordを提示する。
+工場出荷時の`RF_PWD_0`は8-byteすべて0である。
 
 - `MB_MODE=1`: Mailboxの動的`MB_EN`変更を許可する
 - `EH_MODE=0`: RF電界を検出したらV_EHを自動的に出力する
@@ -265,5 +269,5 @@ NewまたはLibraryから書込を開始した後は生成済みBINをRAMに保�
 
 10パターン連続試験は、完了した番号をAndroid側に保持する。途中でTagLostまたはACK
 timeoutになってもReader Modeを再起動し、同じ位置へ戻せば未完了番号から再試行する。
-ただし名刺側MCUも電源断した場合は旧画像RAMの対応を失うため、濃度評価は最初から
-やり直す。
+名刺側MCUも電源断した場合、現FWはFlashの確定済み画像と更新待ち画像から復旧する。
+表示更新途中で中断した試行は連続成功に数えず、濃度評価の連続試験を最初からやり直す。

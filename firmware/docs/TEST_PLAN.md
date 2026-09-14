@@ -22,7 +22,8 @@ C19、BS1、VSH2問題は回路図修正済みであり、リワークは不要�
 
 - Fullが5秒以内、Partialが2秒以内に完了
 - 終了後PA6 Low、EPD_SWほぼ0V
-- BUSYを意図的にHigh固定した場合も2秒後にEPD電源OFF
+- 表示更新開始後にBUSYをHigh固定した場合も、Fullは5秒、Partialは2秒のタイムアウト後にEPD電源OFF。
+  初期化・更新開始前のBUSY待ちのタイムアウトは2秒
 - MOSI/SCK/CS断線ではwrite-only SPIだけで検出できないため、表示不成立を目視確認。
   シーケンス終了後はPA6 Lowになること
 
@@ -117,5 +118,5 @@ one-shotと同じ3.20V / 2.85V / 2.80Vであり、旧基板向けの低電圧閾
 - アプリFlash 52KiB以下、表示store 12KiB、静的RAM 7KiB以下
 - 5回Partial後の外部Fullで残像が回復
 
-FWの20ms VDD診断だけでは短い電圧降下を捕捉できない。量産発注前の最終1回は、
+FWのVDD診断（BUSY中は通常約100ms間隔）だけでは短い電圧降下を捕捉できない。量産発注前の最終1回は、
 オシロスコープまたは十分高速なロガーでSYS_VDDとEPD_SWを同時確認する。

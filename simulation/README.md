@@ -5,16 +5,29 @@ power path:
 
 `ST25DV V_EH -> LM66100 -> VRAW -> TPS63900 -> VRES_3V3 -> U5/U4 -> SYS_VDD`
 
+The default model and results below retain the earlier 1.2104 mF VRES bank,
+before C48/C49 were added. The current schematic and v5 BOM use 1.6504 mF
+nominally (seven 220 uF capacitors, five 22 uF, and four 100 nF on VRES).
+These historical calculations are not validation results for the current board.
+
 It is intended to answer two board-level questions before ordering a prototype:
 
 1. How long does the storage bank take to reach a safe EPD-start voltage?
 2. Does `VRES_3V3` remain above the STM32 PVD threshold during a partial update?
 
-Run the nominal current-board case:
+Run the historical default case:
 
 ```sh
 python3 simulation/power_budget.py
 ```
+
+Run with the current schematic's nominal VRES capacitance (other model assumptions stay unchanged):
+
+```sh
+python3 simulation/power_budget.py --cap-mf 1.6504
+```
+
+The SPICE deck still uses `CRES=1.2104m`; its results below refer to that older bank.
 
 Run a sweep of harvested current and storage capacitance:
 
@@ -65,7 +78,7 @@ python3 simulation/power_budget.py --harvest-ma 3.5 --icl-ma 5
 - `VRES_3V3 = 1.2104 mF`: nominal total after deleting C33-C38 and adding
   C46. It is C14-C17/C46 (5 x 220 uF), C29-C32/C42 (5 x 22 uF), and
   C28/C43-C45 (4 x 100 nF). The U4 CT capacitor is excluded.
-- `VRAW = 231.2 uF`: current schematic nominal total, including C39 = 220 uF.
+- `VRAW = 231.2 uF`: modeled nominal total, including C39 = 220 uF.
 - Pixel 9 Pro `V_EH = 2.3--2.7 V`: measured observation supplied for this
   analysis. Available current is not known from this voltage measurement, so
   the Python model sweeps 1.0--3.0 mA independently.
@@ -73,7 +86,9 @@ python3 simulation/power_budget.py --harvest-ma 3.5 --icl-ma 5
 - Converter efficiency: 85%, deliberately below the typical curves.
 - U5 falling/rising points: 2.930 V / 2.959 V typical, followed by the typical
   200 ms reset delay.
-- Firmware starts the EPD only after 3.20 V has been maintained for 100 ms.
+- The modeled black/white firmware path starts the EPD only after 3.20 V has
+  been maintained for 100 ms. The current four-gray path uses 500 ms and is
+  outside this partial-update model.
 - Partial-refresh load: 2.73 mA for 300 ms, derived from 9 mW / 3.3 V.
 - MCU/system charge-wait current: 0.12 mA. This assumes STOP/WFI and EPD power
   off; it must be checked on hardware.
@@ -127,7 +142,8 @@ Design implications:
 
 - Do not start the EPD at the old 2.95 V gate. The revised model uses a 3.20 V
   gate held for 100 ms while the MCU is in a low-current sleep state. The
-  production firmware still has to implement and validate this gate.
+  production firmware implements this gate in `firmware/Core/Src/app.c`;
+  hardware measurements are still required to validate the energy budget.
 - The 1.2104 mF bank is viable only if Pixel 9 Pro coupling sustains
   at least about 2.3 mA for the 2.80 V board target and the real
   partial-refresh load stays near 2.73 mA.

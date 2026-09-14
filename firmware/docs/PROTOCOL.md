@@ -27,6 +27,7 @@ IEEE/zlib（poly `0xEDB88320`）。
 | STATUS | `0x04` | なし |
 | EXECUTE | `0x05` | なし |
 | PATTERN | `0x06` | `u8 pattern_id` |
+| NDEF_WRITE_PREPARE | `0x07` | なし。NDEF書き込み前のMailbox停止を要求 |
 | ACK | `0x80` | 16-byte status |
 | ERROR | `0x81` | 16-byte status |
 
@@ -115,7 +116,8 @@ REFRESHING=5、COMPLETE=6、ERROR=7。
 2. DATAはSequenceとOffsetの両方が期待値と一致した場合だけコピーする。
 3. 直前と同一のType/Sequence/Offset/Length/CRCは重複として再適用せずACKする。
 4. COMMITは4,736 bytesと画像CRC32の両方を確認する。
-5. COMMIT後、STATUSを最大500ms程度の間隔で読み、state=READYを待つ。
+5. COMMIT/PATTERN ACK後はまず1.5秒RFコマンドを止める（現行Android／iOSクライアント）。
+   その後はSTATUSを低頻度で読み、state=READYを待つ。ACKの`quiet_ms`がある場合はそれ以上待つ。
 6. READYでEXECUTEを送る。ACKを最後まで読み、`quiet_ms`の間はRFコマンドを送らず
    電界だけ維持する。
 7. FWはACKの`HOST_PUT_MSG`がRF読取によりclearされた後、さらに100ms待ってPA6をONする。
@@ -137,7 +139,7 @@ REFRESHING=5、COMPLETE=6、ERROR=7。
 15. 4階調はGate Start PositionとMUXを使って32行ずつ10回に分けて駆動する。各帯域を
     HW/SW Reset、2段階の4階調初期化、RAM plane転送、C7、Deep Sleep、EPD電源OFFまでの
     独立サイクルにする。初期化の2段階間とRAM転送後はEPD電源を維持したまま、帯域完了後は
-    EPD電源を切って3.20V/100msまで再充電する。
+    EPD電源を切って3.20V/500msまで再充電する。4階調の通常充電待ちも500msの安定時間を使う。
     296行の末尾8行はSSD1680の最小MUX=16に合わせ、直前8行と重ねて16行更新する。
     AndroidはEXECUTE ACK後に最低60秒RFコマンドを止め、CHARGING中はEXECUTEを再送せず
     FWの自動帯域継続を待つ。
@@ -146,7 +148,20 @@ PATTERNはSTART/DATA/COMMITの代わりに1フレームだけ送る。CRC、ACK�
 RF quiet、EPD更新は通常画像と同じ経路を通るため、Mailbox立上げの中間試験に使用する。
 直前の表示はCRC付きFlash slotからSSD1680の旧画像RAMへ直接転送する。このため追加RAM
 なしで10種類を連続Partial更新でき、電源断後も旧画像を復元できる。Flash slotが一度も
-初期化されていない基板だけは旧画面=白を前提とするため、出荷時に`prepare-white`を実行する。
+初期化されていない基板だけは旧画面=白を前提とする。出荷時は外部3.3Vで
+`factory-release`を実行し、`FW OK`表示と同じ基準画像をFlashへ保存する。
+全面白を出荷表示にする場合は`prepare-white`を完了し、`release`をmass eraseなしで書き込む。
 
 端末のNFC-V最大転送長が小さい場合、DATAだけ240 bytes未満にしてよい。FWは可変長
 DATAを受理する。240 bytesなら20 DATAフレームになる。
+
+## NDEF_WRITE_PREPARE — URL設定・クリア
+
+Sequence=0、Offset=0、Payloadなしで送る。REFRESHING／EXECUTE_ACK中は
+`NC_ERROR_COMMAND`で拒否する。それ以外ではSTATUS形式のACKを返し、ACKが読まれた後に
+FWがMailboxを停止する。スマホ側も成功ACKを確認してから動的`MB_EN`を無効化し、NDEFを書き込む。
+
+この間はFWのMailbox自動有効化と画像更新処理を停止する。NDEFの読み返し後、スマホが
+`MB_EN`を再度有効にするとFWも通常処理へ戻る。画像転送が途中ならスマホ側でもその復旧状態を管理する。
+静的`MB_MODE`／`EH_MODE`やパスワードを変更するコマンドではない。
+URLのクリアはNDEFの空レコードへの書き換えなので、同じ準備・再開手順を使用する。

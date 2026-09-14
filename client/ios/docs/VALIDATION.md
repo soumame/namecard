@@ -1,5 +1,8 @@
 # 実装時の検証記録
 
+各節は記載日の検証環境・結果を残した記録です。署名なしビルドの確認と、その後の実機配布は別に記録しています。
+現在のTestFlight参加方法は[ベータ試験ガイド](BETA_TESTING.md)、配布履歴は[配布手順](DISTRIBUTION.md)を参照してください。
+
 ## URL通信の改善（2026-09-14）
 
 - iPhone 17e／iOS 26.5 Simulatorで、アセットを含むDebugビルドとNamecardTestsの73件が成功。
@@ -220,7 +223,8 @@ HardwareTestのSimulatorビルドもアセットを含めて成功していま�
 最初のDebugのschemeテストではアプリのx86_64ビルドと共通パッケージのarm64ビルドが混在して失敗したため、
 Debug／HardwareTestのONLY_ACTIVE_ARCHをYESに揃えました。その後は通常のschemeテストで実行できています。
 BetaのSimulatorテストもONLY_ACTIVE_ARCH=YESとし、配布用Archiveの最適化設定は維持します。
-Apple署名・OrganizerのValidate App・アップロード・ベータ版の実機RF動作は未確認です。
+このローカル検証ではApple署名・OrganizerのValidate App・アップロード・ベータ版の実機RF動作を確認していません。
+その後の2026-09-08に初回TestFlightアップロード、2026-09-09に外部ベータ審査への提出を行っています（[配布履歴](DISTRIBUTION.md)参照）。
 
 触覚案内の試作でも、同じアセット除外指定でDebugのアプリ・単体テスト・UIテストのコンパイルとリンクを再確認しました。
 加えてiPhoneOS向けHardwareTest構成を署名なし・同じアセット除外指定でビルドし、成功しました。
@@ -231,7 +235,7 @@ Core Haptics版も同じ条件のSimulator向けDebugと署名なし実機向け
 通常の環境では[READMEのコマンド](../README.md#開発環境)を使用してください。
 `.github/workflows/ios.yml`にはmacOS上の共通テスト、アセットを含むRelease・HardwareTest・Betaビルド、
 通常／BetaのSimulatorアプリ単体試験・UI試験、配布区分の確認を定義しています。
-GitHub上の今回のCI実行結果はまだありません。
+このローカル検証の記録には、GitHub上のCI実行結果を含めていません。
 
 ## 実機・公開までに残る作業
 

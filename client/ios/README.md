@@ -1,13 +1,17 @@
 # Namecard for iOS
 
 iOS 17以降向けのSwiftUIアプリです。販売済みの名刺基板・FWを変更せず、
-Androidと同じ296×128 BINを利用します。MameCardとしてTestFlight内部テストを開始しています。
-2026-09-09に0.1.0（1）を外部TestFlight審査へ提出し、現在は「審査待ち」です。
-外部向けの招待リンクとApp Storeでの一般公開はまだありません。
+Androidと同じ296×128 BINを利用します。MameCardとしてTestFlightでベータ配布しています。
+
+**[TestFlight事前登録フォーム](https://forms.gle/RqQPmfoJ9aMMtRm66)への回答後に、参加リンクをお送りします。**
+届いたリンクからTestFlightの案内に沿ってインストールしてください。試験内容・報告方法は
+[ベータ試験ガイド](docs/BETA_TESTING.md)を参照してください。App Store公開に向けた実機検証は継続中です。
+
+以下の機能説明はリポジトリの現行ソースを対象とします。配布済みビルドの変更点はTestFlightの「テスト内容」を確認してください。
 
 ## 開発環境
 
-- Xcode 26以降、Swift 6 toolchain。外部Swiftパッケージは不要です。
+- Xcode 26以降、Swift 6 toolchain（アプリの言語モードはSwift 5）。外部Swiftパッケージは不要です。
 - iOS 26では標準のナビゲーションとコントロール、およびエディタの操作面にLiquid Glassを使用します。
   iOS 17〜18では同じ機能と階層を保った標準Material／Buttonスタイルへフォールバックします。
 - `Namecard.xcodeproj`を開き、通常は`Namecard` schemeを使用します。

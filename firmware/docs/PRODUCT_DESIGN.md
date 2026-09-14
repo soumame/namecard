@@ -3,16 +3,20 @@
 ## Supported user flow
 
 The product protocol remains platform-neutral ISO 15693/ST25DV FTM, but the
-supported September release client is Android only. The phone must keep the RF
+primary production client is Android. An [iOS client](../../client/ios/README.md)
+is also available as a TestFlight beta. Submit the [registration form](https://forms.gle/RqQPmfoJ9aMMtRm66)
+to receive a TestFlight invitation link. The phone must keep the RF
 field present while deliberately pausing RF commands during VRES charge and EPD
 refresh. The Android client has an explicit URL mode that pauses FTM before an
 NDEF write; generic NDEF writers and Web NFC do not perform this coordination.
 
 iPhone is not an electrical incompatibility: an entitled Core NFC application
 can open an ISO 15693 tag-reader session and the prototype showed that it can
-maintain enough field for EH. It is outside the supported release because an
-NFC entitlement, signing, session lifecycle, and another full phone validation
-matrix are required. Do not put an “iPhone cannot power it” claim on the product.
+maintain enough field for EH. The beta implements black/white image updates and
+URL operations, with user reports on iPhone XR / iOS 18. Power/timing measurements
+and the full phone validation matrix are still pending for the App Store release.
+Four-gray NFC writes and transitions from four-gray to black/white remain disabled
+on iOS. Do not put an “iPhone cannot power it” claim on the product.
 
 ## Final firmware state machine
 
@@ -93,8 +97,9 @@ partial-update artifacts. It does not remove electrophoretic panel ghosting.
   Android-driven separate updates.
 - Factory/maintenance clean: external 3.3 V Full refresh to white, then restore
   the target.
-- Record the Partial count in the Android app; suggest cleaning after about
-  five high-contrast updates until real panels establish a better interval.
+- A Partial counter and a cleaning reminder after about five high-contrast
+  updates are future ideas; the Android app does not implement them. Its current
+  cleaning option is enabled by default for black/white image writes.
 
 ## Product hardware and mechanical boundary
 
@@ -160,8 +165,8 @@ reviewed.
 - Five alternating black/white/high-detail Partial updates remain legible; the
   cleanup flow restores contrast.
 - Firmware build stays below 52 KiB code and 7 KiB static RAM.
-- `prepare-white` reads back `EH_MODE=0` and `FTM.MB_MODE=1` on every
-  production unit.
+- `factory-release` (or the alternative `prepare-white` sequence) reads back
+  `EH_MODE=0` and `FTM.MB_MODE=1` on every production unit.
 - No 30-piece order with a changed PCB slot/notch/antenna geometry unless a
   prototype of that exact geometry passes the RF/EH gate.
 
