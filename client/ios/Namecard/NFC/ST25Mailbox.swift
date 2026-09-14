@@ -64,7 +64,7 @@ final class ST25Mailbox: MailboxTransport, URLTagTransport, @unchecked Sendable 
             return MailboxTransportError.connectionLost(detail)
         }
         if isoCode == 0x10, command == 0xad || command == 0xae {
-            return AppFailure("Mailboxを利用できません。名刺の初期設定を確認してください（MB_MODE）。\n\(detail)")
+            return MailboxAvailabilityError.unavailable(detail)
         }
         if nsError.domain == NFCErrorDomain,
            nsError.code == NFCReaderError.Code.readerTransceiveErrorRetryExceeded.rawValue ||
@@ -95,6 +95,17 @@ final class ST25Mailbox: MailboxTransport, URLTagTransport, @unchecked Sendable 
         guard try await control() & 1 == desired else {
             throw AppFailure(enabled ? "Mailboxを再開できません。再スキャンしてください。" : "Mailboxを停止できません。")
         }
+    }
+
+    func prepareForURL() async throws {
+        try await URLMailboxStartup.enable(deadline: deadline, readEnergy: { [self] in
+            let bytes = try await command(0xad, Data([0x02]))
+            guard bytes.count == 1 else { throw AppFailure("電源レジスタの応答長が不正です。") }
+            return bytes[0]
+        }, readControl: { [self] in try await control() }, enableMailbox: { [self] in
+            _ = try await command(0xae, Data([0x0d, 1]))
+        }, onWait: onEvent)
+        initialized = true
     }
 
     private func readACK() async throws -> Data {
@@ -158,19 +169,45 @@ final class ST25Mailbox: MailboxTransport, URLTagTransport, @unchecked Sendable 
     func readMemory() async throws -> Data {
         var memory = Data()
         for block in 0..<128 {
-            try checkConnection()
-            let bytes = try await CancellableNFCRequest.run { [self] in
-                try await tag.readSingleBlock(requestFlags: [.highDataRate], blockNumber: UInt8(block))
-            }
-            guard bytes.count == 4 else { throw AppFailure("この名刺のメモリ構成には対応していません。") }
-            memory.append(bytes)
+            memory.append(try await readBlock(block))
         }
         return memory
     }
 
+    func readNDEFMessage() async throws -> Data? {
+        try await URLNDEFReader.read { [self] in try await readBlock($0) }
+    }
+
+    private func readBlock(_ block: Int) async throws -> Data {
+        let bytes = try await readNFC("URLメモリ block=\(block)") { [self] in
+            try await tag.readSingleBlock(requestFlags: [.highDataRate], blockNumber: UInt8(block))
+        }
+        guard bytes.count == 4 else { throw AppFailure("この名刺のメモリ構成には対応していません。") }
+        return bytes
+    }
+
+    private func request<Value>(_ context: String,
+                                operation: @escaping @Sendable () async throws -> Value) async throws -> Value {
+        do {
+            try checkConnection()
+            return try await CancellableNFCRequest.run(operation)
+        } catch {
+            onEvent("\(context): \(error.localizedDescription)")
+            // Keep typed errors from checkConnection for the rediscovery policy.
+            if error is MailboxTransportError { throw error }
+            throw Self.transportError(error)
+        }
+    }
+
+    private func readNFC<Value>(_ context: String,
+                                operation: @escaping @Sendable () async throws -> Value) async throws -> Value {
+        try await NFCReadRetry.read(deadline: deadline, onRetry: { [self] attempt in
+            onEvent("\(context) 読取を再試行 \(attempt)/3")
+        }) { [self] in try await request(context, operation: operation) }
+    }
+
     func blankIdentity() async throws -> Type5Identity {
-        try checkConnection()
-        let info = try await CancellableNFCRequest.run { [self] in
+        let info = try await readNFC("URLタグ情報") { [self] in
             let result = try await tag.systemInfo(requestFlags: [.highDataRate])
             return (blockSize: result.blockSize, totalBlocks: result.totalBlocks, icReference: result.icReference)
         }
@@ -179,8 +216,7 @@ final class ST25Mailbox: MailboxTransport, URLTagTransport, @unchecked Sendable 
         }
         var writable = true
         for start in stride(from: 0, to: 128, by: 16) {
-            try checkConnection()
-            let statuses = try await CancellableNFCRequest.run { [self] in
+            let statuses = try await readNFC("URL保護状態 block=\(start)") { [self] in
                 try await tag.getMultipleBlockSecurityStatus(
                     requestFlags: [.highDataRate], blockRange: NSRange(location: start, length: 16))
             }
@@ -192,8 +228,7 @@ final class ST25Mailbox: MailboxTransport, URLTagTransport, @unchecked Sendable 
     }
 
     func ndefStatus() async throws -> URLMemoryStatus {
-        try checkConnection()
-        let (status, capacity) = try await CancellableNFCRequest.run { [self] in try await tag.queryNDEFStatus() }
+        let (status, capacity) = try await readNFC("URL NDEF状態") { [self] in try await tag.queryNDEFStatus() }
         switch status {
         case .readWrite: return .readWrite(capacity)
         case .readOnly: return .readOnly
@@ -203,14 +238,14 @@ final class ST25Mailbox: MailboxTransport, URLTagTransport, @unchecked Sendable 
     }
 
     func writeMessage(_ bytes: Data) async throws {
-        try checkConnection()
         guard let message = NFCNDEFMessage(data: bytes) else { throw AppFailure("URLデータを作成できません。") }
-        try await CancellableNFCRequest.run { [self] in try await tag.writeNDEF(message) }
+        // A failed write may have reached EEPROM. Never retry it on this tag
+        // object; retain the journal and reconnect before attempting recovery.
+        try await request("URL NDEF書込") { [self] in try await tag.writeNDEF(message) }
     }
 
     func writeBlock(_ write: Type5BlockWrite) async throws {
-        try checkConnection()
-        try await CancellableNFCRequest.run { [self] in
+        try await request("URL初期化 block=\(write.block)") { [self] in
             try await tag.writeSingleBlock(requestFlags: [.highDataRate], blockNumber: UInt8(write.block), dataBlock: write.bytes)
         }
     }

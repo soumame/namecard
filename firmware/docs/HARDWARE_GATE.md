@@ -1,4 +1,4 @@
-# Hardware gate — namecard v4
+# Hardware gate — namecard v4 / v5
 
 FWを書き込む前に、実装済み基板そのものを確認する。v4回路図では旧版の
 `C19のCT接続`と`BS1/VSH2`入替えは修正済みなので、部品を外すリワークは不要。
@@ -58,17 +58,21 @@ TP6がほぼ0Vへ戻ることを確認する。
 
 ## 4. ST25DV provisioning
 
-ST25公式アプリから静的設定を一度確認する。この設定はRF給電だけでも書き込める。
-外部3.3Vを使う場合はEPD電源がOFFであることを確認する。
+現FWの`release`は、外部3.3Vでの初回起動時に静的設定を行い、読み返して確認する。
+前節の`FW: Flash release`で設定され、以後の起動では設定値を読むだけで再書き込みしない。
+`factory-release`と`prepare-white`も同じ設定・確認を行う。
+手動確認・切り分けにはST25公式アプリを使用できる。設定はRF給電だけでも書き込める。
+手動確認に外部3.3Vを使う場合は、EPD電源がOFFであることを確認する。
 
 - `MB_MODE=1`: Fast Transfer Modeを許可
 - `EH_MODE=0`: RF電界検出後にV_EHを自動有効化
 
 新品のST25DVは`MB_MODE=0`、`EH_MODE=1`が初期値なので、実装した基板ごとに設定する。
 工場出荷時のRF configuration password 0は8-byteすべて0。設定後はスマホを完全に
-離してRF電界を一度切る。FWは動的`MB_EN`を設定できるが、静的`MB_MODE=0`では
-`AEh`コマンドがerror `10h`（block not available）になり、MCUが起動する前に必要な
-`EH_MODE`もFWからは直せない。
+離してRF電界を一度切る。静的`MB_MODE=0`では動的`MB_EN`の変更に使う
+`AEh`コマンドがerror `10h`（block not available）になる。
+未設定の`EH_MODE`でMCUがRF給電から起動できない場合は、外部3.3VでFWの設定処理を実行するか、
+ST25公式アプリで設定する。Android／iOSのNamecardアプリ自体は静的設定を変更しない。
 
 ## 5. DMMだけで確認できる電源鎖
 
@@ -80,6 +84,6 @@ ST25公式アプリから静的設定を一度確認する。この設定はRF�
 - TP8/SYS_VDD: MCU動作中およそ3.3V
 - TP6/EPD_SW: 待機中0V、更新中のみSYS_VDD相当
 
-DMMでは短い電圧降下を捕捉できない。FWは診断ビルドでVREFINTを20msごとに記録し、
+DMMでは短い電圧降下を捕捉できない。FWの診断ビルドもBUSY中は通常約100ms間隔のVREFINT測定となり、
 PVD4は非同期に電圧低下を検出する。量産判断前には可能ならオシロスコープまたは
 高速ロガーでSYS_VDDとEPD_SWを同時確認する。

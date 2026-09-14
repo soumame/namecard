@@ -7,8 +7,8 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.DashPathEffect
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
-import android.graphics.Typeface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,7 +43,6 @@ internal class EditorCanvasState {
     private val pixelBitmapPaint = Paint()
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.BLACK
-        typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
     }
     private val backgroundPaint = Paint().apply {
         color = Color.WHITE
@@ -72,6 +71,7 @@ internal class EditorCanvasState {
     private var transformHistoryRecorded = false
     private var rawTransformCenterX: Float? = null
     private var rawTransformCenterY: Float? = null
+    private var rawTransformRotationDegrees: Float? = null
     private var activeSnapGuideX: Float? = null
     private var activeSnapGuideY: Float? = null
 
@@ -90,13 +90,16 @@ internal class EditorCanvasState {
     var snapEnabled by mutableStateOf(false)
         private set
 
+    var objectRotationSnapEnabled by mutableStateOf(false)
+        private set
+
     val hasSelection: Boolean get() = selectedLayer() != null
 
-    fun addText(value: String) {
+    fun addText(value: String, style: EditorTextStyle = EditorTextStyle()) {
         val text = value.trim()
         if (text.isEmpty()) return
         recordChange()
-        layers += Layer.text(text, paperWidth / 2f, paperHeight / 2f)
+        layers += Layer.text(text, paperWidth / 2f, paperHeight / 2f, style)
         selectedIndex = layers.lastIndex
         changed()
     }
@@ -160,6 +163,12 @@ internal class EditorCanvasState {
         changed()
     }
 
+    fun toggleObjectRotationSnap() {
+        objectRotationSnapEnabled = !objectRotationSnapEnabled
+        rawTransformRotationDegrees = null
+        changed()
+    }
+
     fun selectAt(x: Float, y: Float) {
         val previousIndex = selectedIndex
         selectedIndex = -1
@@ -178,6 +187,7 @@ internal class EditorCanvasState {
         transformHistoryRecorded = false
         rawTransformCenterX = selected?.centerX
         rawTransformCenterY = selected?.centerY
+        rawTransformRotationDegrees = selected?.rotationDegrees
         clearSnapGuides()
     }
 
@@ -188,9 +198,11 @@ internal class EditorCanvasState {
         rotationDegrees: Float,
     ) {
         val selected = selectedLayer() ?: return
+        if (!deltaX.isFinite() || !deltaY.isFinite() || !scaleFactor.isFinite() ||
+            scaleFactor <= 0f || !rotationDegrees.isFinite()) return
         val hasMovement = deltaX != 0f || deltaY != 0f
         val hasScale = scaleFactor !in 0.999f..1.001f
-        val hasRotation = rotationDegrees !in -0.01f..0.01f
+        val hasRotation = rotationDegrees != 0f
         if (!hasMovement && !hasScale && !hasRotation) return
         recordPendingTransform()
         val rawX = ((rawTransformCenterX ?: selected.centerX) + deltaX)
@@ -200,7 +212,17 @@ internal class EditorCanvasState {
         rawTransformCenterX = rawX
         rawTransformCenterY = rawY
         if (hasScale) selected.resize(scaleFactor)
-        if (hasRotation) selected.rotate(rotationDegrees)
+        if (hasRotation) {
+            val rawRotation = normalizeEditorRotationDegrees(
+                (rawTransformRotationDegrees ?: selected.rotationDegrees) + rotationDegrees,
+            )
+            rawTransformRotationDegrees = rawRotation
+            selected.rotationDegrees = if (objectRotationSnapEnabled) {
+                snapEditorRotationDegrees(rawRotation)
+            } else {
+                rawRotation
+            }
+        }
         val snapped = if (snapEnabled) {
             snappedPosition(selected, rawX, rawY)
         } else {
@@ -218,6 +240,7 @@ internal class EditorCanvasState {
         transformHistoryRecorded = false
         rawTransformCenterX = null
         rawTransformCenterY = null
+        rawTransformRotationDegrees = null
         val hadGuides = activeSnapGuideX != null || activeSnapGuideY != null
         clearSnapGuides()
         if (hadGuides) changed()
@@ -350,6 +373,7 @@ internal class EditorCanvasState {
         transformHistoryRecorded = false
         rawTransformCenterX = null
         rawTransformCenterY = null
+        rawTransformRotationDegrees = null
         clearSnapGuides()
     }
 
@@ -359,7 +383,7 @@ internal class EditorCanvasState {
             return
         }
         val text = layer.text ?: return
-        textPaint.textSize = layer.textSize
+        layer.textStyle.applyTo(textPaint, layer.textSize)
         val width = textPaint.measureText(text)
         val metrics = textPaint.fontMetrics
         val baseline = layer.centerY - (metrics.ascent + metrics.descent) / 2f
@@ -372,6 +396,7 @@ internal class EditorCanvasState {
         pushUndo(snapshot())
         pendingTransformSnapshot = null
         transformHistoryRecorded = false
+        rawTransformRotationDegrees = null
     }
 
     private fun recordPendingTransform() {
@@ -401,6 +426,7 @@ internal class EditorCanvasState {
         transformHistoryRecorded = false
         rawTransformCenterX = null
         rawTransformCenterY = null
+        rawTransformRotationDegrees = null
         clearSnapGuides()
         changed()
     }
@@ -528,6 +554,7 @@ internal class EditorCanvasState {
         var width: Float = 0f,
         var height: Float = 0f,
         var textSize: Float = 0f,
+        val textStyle: EditorTextStyle = EditorTextStyle(),
         var rotationDegrees: Float = 0f,
         val pixelated: Boolean = false,
     ) {
@@ -541,15 +568,29 @@ internal class EditorCanvasState {
                 )
             }
             val value = requireNotNull(text)
-            paint.textSize = textSize
+            textStyle.applyTo(paint, textSize)
             val metrics = paint.fontMetrics
             val measuredWidth = paint.measureText(value)
-            val measuredHeight = metrics.descent - metrics.ascent
+            val ink = Rect()
+            paint.getTextBounds(value, 0, value.length, ink)
+            val baseline = centerY - (metrics.ascent + metrics.descent) / 2f
+            val left = centerX - measuredWidth / 2f
+            val bottom = maxOf(metrics.descent, ink.bottom.toFloat(),
+                if (textStyle.underline) textSize * 0.2f else 0f)
+            // Keep bounds centered for rotated edge snapping, including italic overhang.
+            val halfWidth = maxOf(
+                centerX - (left + minOf(0f, ink.left.toFloat())),
+                left + maxOf(measuredWidth, ink.right.toFloat()) - centerX,
+            ) + 2f
+            val halfHeight = maxOf(
+                centerY - (baseline + minOf(metrics.ascent, ink.top.toFloat())),
+                baseline + bottom - centerY,
+            ) + 2f
             return RectF(
-                centerX - measuredWidth / 2f - 2f,
-                centerY - measuredHeight / 2f - 2f,
-                centerX + measuredWidth / 2f + 2f,
-                centerY + measuredHeight / 2f + 2f,
+                centerX - halfWidth,
+                centerY - halfHeight,
+                centerX + halfWidth,
+                centerY + halfHeight,
             )
         }
 
@@ -581,17 +622,13 @@ internal class EditorCanvasState {
             }
         }
 
-        fun rotate(deltaDegrees: Float) {
-            val value = rotationDegrees + deltaDegrees
-            rotationDegrees = ((value + 180f) % 360f + 360f) % 360f - 180f
-        }
-
         companion object {
-            fun text(value: String, x: Float, y: Float) = Layer(
+            fun text(value: String, x: Float, y: Float, style: EditorTextStyle) = Layer(
                 text = value,
                 centerX = x,
                 centerY = y,
                 textSize = 24f,
+                textStyle = style,
             )
 
             fun image(bitmap: Bitmap, x: Float, y: Float, width: Float, height: Float, pixelated: Boolean = false) = Layer(

@@ -5,6 +5,143 @@ import NamecardCore
 
 @MainActor
 final class EditorTests: XCTestCase {
+    func testTextStyleChangesRenderingAndSurvivesTransformUndoRedo() throws {
+        let model = EditorModel()
+        let style = EditorTextStyle(fontFamily: "Helvetica Neue", bold: false, italic: true, underline: true)
+        model.addText("Namecard 日本語", style: style)
+        let original = model.layers[0]
+        let image = try model.renderNativeImage()
+        model.adjustSelection(zoom: 1.3, rotation: 0.2)
+        XCTAssertEqual(model.layers[0].textStyle, style)
+        model.undo()
+        XCTAssertEqual(model.layers[0].fontSize, original.fontSize)
+        XCTAssertEqual(model.layers[0].textStyle, style)
+        XCTAssertEqual(try model.renderNativeImage(), image)
+        model.undo()
+        XCTAssertTrue(model.layers.isEmpty)
+        model.redo()
+        XCTAssertEqual(model.layers[0].textStyle, style)
+        XCTAssertEqual(try model.renderNativeImage(), image)
+    }
+
+    func testEachTextStyleAffectsBothBINFormats() throws {
+        for format in ImageFormat.allCases {
+            let regular = EditorModel()
+            regular.format = format
+            regular.addText("Namecard 日本語", style: EditorTextStyle(bold: false))
+            let baseline = try regular.renderNativeImage()
+            for style in [EditorTextStyle(), EditorTextStyle(bold: false, italic: true),
+                          EditorTextStyle(bold: false, underline: true),
+                          EditorTextStyle(fontFamily: "Courier", bold: false)] {
+                let styled = EditorModel()
+                styled.format = format
+                styled.addText("Namecard 日本語", style: style)
+                XCTAssertNotEqual(try styled.renderNativeImage(), baseline)
+                XCTAssertTrue(styled.layers[0].bounds.contains(styled.layers[0].textDrawingBounds))
+            }
+        }
+    }
+
+    func testJapaneseFamilyWithoutItalicFaceStillRendersItalic() throws {
+        let family = try XCTUnwrap(EditorTextStyle.availableFontFamilies.first { $0 == "Hiragino Sans" })
+        let regularStyle = EditorTextStyle(fontFamily: family, bold: false)
+        let italicStyle = EditorTextStyle(fontFamily: family, bold: false, italic: true)
+        XCTAssertEqual(italicStyle.font(at: 24).familyName, family)
+        let regular = EditorModel()
+        regular.addText("日本語の名刺", style: regularStyle)
+        let italic = EditorModel()
+        italic.addText("日本語の名刺", style: italicStyle)
+        XCTAssertNotEqual(try italic.renderNativeImage(), try regular.renderNativeImage())
+
+        let systemRegular = EditorModel()
+        systemRegular.addText("日本語の名刺", style: EditorTextStyle(bold: false))
+        let systemItalic = EditorModel()
+        systemItalic.addText("日本語の名刺", style: EditorTextStyle(bold: false, italic: true))
+        XCTAssertNotEqual(try systemItalic.renderNativeImage(), try systemRegular.renderNativeImage(),
+                          "Italic must apply to Japanese fallback glyphs as well as Latin glyphs")
+    }
+
+    func testDefaultTextRemainsSystemBoldAndMissingFamilyFallsBack() {
+        let model = EditorModel()
+        model.addText("名刺")
+        XCTAssertEqual(model.layers[0].textStyle, EditorTextStyle())
+        XCTAssertEqual(model.layers[0].textStyle.font(at: 24), UIFont.systemFont(ofSize: 24, weight: .bold))
+        let missing = EditorTextStyle(fontFamily: "Missing Namecard Font", italic: true, underline: true)
+        XCTAssertTrue(missing.font(at: 24).fontDescriptor.symbolicTraits.contains(.traitBold))
+        XCTAssertEqual(missing.attributes(at: 24)[.obliqueness] as? Double, 0.2)
+        XCTAssertEqual(missing.attributes(at: 24)[.underlineStyle] as? Int, NSUnderlineStyle.single.rawValue)
+    }
+
+    func testStyledInkStaysInsideSelectionBounds() throws {
+        for family in [nil, "Hiragino Sans", "Courier", "Times New Roman"] as [String?] {
+            for zoom in [CGFloat(1), 4] {
+                let model = EditorModel()
+                model.addText(zoom == 1 ? "fjÁg日本語" : "f日", style: EditorTextStyle(fontFamily: family, italic: true, underline: true))
+                model.adjustSelection(zoom: sqrt(zoom))
+                model.adjustSelection(zoom: sqrt(zoom))
+                let bounds = model.layers[0].bounds.insetBy(dx: -1, dy: -1)
+                let pixels = try NativeImage.decode(model.renderNativeImage(), format: .dotDensity)
+                let outside = pixels.indices.filter { pixels[$0] != 0xffffffff }.filter {
+                    !bounds.contains(CGPoint(x: CGFloat($0 % 296) + 0.5, y: CGFloat($0 / 296) + 0.5))
+                }
+                let xs = outside.map { $0 % 296 }
+                let ys = outside.map { $0 / 296 }
+                XCTAssertTrue(outside.isEmpty, "\(family ?? "System") at \(24 * zoom) pt has \(outside.count) ink pixels outside \(bounds): x \(xs.min() ?? 0)...\(xs.max() ?? 0), y \(ys.min() ?? 0)...\(ys.max() ?? 0), \(model.layers[0].textStyle.font(at: 24 * zoom))")
+            }
+        }
+    }
+
+    func testViewportSnapAccumulatesSmallDeltasAndKeepsGestureFocusAnchored() {
+        var viewport = EditorViewport()
+        let size = CGSize(width: 390, height: 500)
+        let focus = CGPoint(x: 42, y: 320)
+        let paperFocus = focus.applying(viewport.transform(in: size).inverted())
+        viewport.beginTransform()
+        for angle in 1...5 {
+            viewport.apply(pan: .zero, zoom: 1, rotation: .pi / 180, focus: focus, size: size,
+                           rotationSnapEnabled: true)
+            XCTAssertEqual(viewport.rotation, angle <= 4 ? 0 : 5 * .pi / 180, accuracy: 0.00001)
+            let anchored = paperFocus.applying(viewport.transform(in: size))
+            XCTAssertEqual(anchored.x, focus.x, accuracy: 0.0001)
+            XCTAssertEqual(anchored.y, focus.y, accuracy: 0.0001)
+        }
+        viewport.apply(pan: CGPoint(x: 10, y: -8), zoom: 1.4, rotation: 7 * .pi / 180,
+                       focus: focus, size: size, rotationSnapEnabled: true)
+        XCTAssertEqual(viewport.rotation, 15 * .pi / 180, accuracy: 0.00001)
+        let movedFocus = paperFocus.applying(viewport.transform(in: size))
+        XCTAssertEqual(movedFocus.x, focus.x + 10, accuracy: 0.0001)
+        XCTAssertEqual(movedFocus.y, focus.y - 8, accuracy: 0.0001)
+        viewport.endTransform()
+        viewport.beginTransform()
+        viewport.apply(pan: .zero, zoom: 1, rotation: .pi / 180, focus: focus, size: size,
+                       rotationSnapEnabled: true)
+        XCTAssertEqual(viewport.rotation, 15 * .pi / 180, accuracy: 0.00001)
+    }
+
+    func testViewportSnapHandlesWrapThresholdAndReset() {
+        let radians = CGFloat.pi / 180
+        XCTAssertEqual(EditorRotationSnap.snapped(179 * radians), -.pi, accuracy: 0.00001)
+        XCTAssertEqual(EditorRotationSnap.snapped(-179 * radians), -.pi, accuracy: 0.00001)
+        XCTAssertEqual(EditorRotationSnap.snapped(11 * radians), 15 * radians, accuracy: 0.00001)
+        XCTAssertEqual(EditorRotationSnap.snapped(-11 * radians), -15 * radians, accuracy: 0.00001)
+        XCTAssertEqual(EditorRotationSnap.snapped(10 * radians), 10 * radians, accuracy: 0.00001)
+        let model = EditorModel()
+        XCTAssertFalse(model.viewportRotationSnapEnabled)
+        model.viewportRotationSnapEnabled = true
+        XCTAssertFalse(model.snapEnabled)
+        model.viewport.beginTransform()
+        model.viewport.apply(pan: .zero, zoom: 1, rotation: 3 * radians, focus: .zero,
+                             size: CGSize(width: 390, height: 500), rotationSnapEnabled: true)
+        XCTAssertEqual(model.viewport.rotation, 0)
+        model.viewportRotationSnapEnabled = false
+        model.viewport.apply(pan: .zero, zoom: 1, rotation: radians, focus: .zero,
+                             size: CGSize(width: 390, height: 500))
+        XCTAssertEqual(model.viewport.rotation, radians, accuracy: 0.00001)
+        model.resetViewport()
+        XCTAssertTrue(model.viewport.isDefault)
+        XCTAssertFalse(model.canUndo)
+    }
+
     func testContinuousTransformIsOneUndoAndKeepsRawMovementAcrossSnap() {
         let model = EditorModel()
         model.addText("名刺")
@@ -24,6 +161,76 @@ final class EditorTests: XCTestCase {
         model.redo()
         XCTAssertEqual(model.layers[0].center.x, 155)
         XCTAssertFalse(model.canRedo)
+    }
+
+    func testObjectRotationSnapAccumulatesForTextAndImagesAndSupportsUndo() throws {
+        for imageLayer in [false, true] {
+            let model = EditorModel()
+            if imageLayer {
+                let image = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 12)).image { context in
+                    UIColor.black.setFill()
+                    context.fill(CGRect(x: 0, y: 0, width: 24, height: 12))
+                }
+                try model.addImage(image)
+            } else {
+                model.addText("Snap")
+            }
+            let original = try model.renderNativeImage()
+            XCTAssertFalse(model.objectRotationSnapEnabled)
+            model.objectRotationSnapEnabled = true
+            XCTAssertFalse(model.snapEnabled)
+            XCTAssertFalse(model.viewportRotationSnapEnabled)
+            model.beginTransform()
+            for _ in 0..<4 {
+                model.transformSelection(pan: .zero, zoom: 1, rotation: .pi / 180)
+            }
+            XCTAssertEqual(model.layers[0].rotation, 0, accuracy: 0.00001)
+            model.transformSelection(pan: .zero, zoom: 1, rotation: .pi / 180)
+            XCTAssertEqual(model.layers[0].rotation, 5 * .pi / 180, accuracy: 0.00001)
+            model.transformSelection(pan: CGPoint(x: 2, y: -3), zoom: 1.2, rotation: 7 * .pi / 180)
+            model.endTransform()
+            XCTAssertEqual(model.layers[0].rotation, .pi / 12, accuracy: 0.00001)
+            XCTAssertEqual(model.layers[0].center, CGPoint(x: 150, y: 61))
+            XCTAssertTrue(model.viewport.isDefault)
+            let rotated = try model.renderNativeImage()
+            XCTAssertNotEqual(rotated, original)
+            model.undo()
+            XCTAssertEqual(try model.renderNativeImage(), original)
+            model.redo()
+            XCTAssertEqual(try model.renderNativeImage(), rotated)
+            model.beginTransform()
+            model.transformSelection(pan: .zero, zoom: 1, rotation: 5 * .pi / 180)
+            XCTAssertEqual(model.layers[0].rotation, 20 * .pi / 180, accuracy: 0.00001)
+            model.endTransform()
+        }
+    }
+
+    func testObjectRotationSnapToggleResetsRawAngleAndWrapsWithoutAffectingOtherLayers() {
+        let model = EditorModel()
+        model.addText("First")
+        model.adjustSelection(rotation: 28 * .pi / 180)
+        model.objectRotationSnapEnabled = true
+        XCTAssertEqual(model.layers[0].rotation, 28 * .pi / 180, accuracy: 0.00001)
+        model.beginTransform()
+        model.transformSelection(pan: CGPoint(x: -50, y: 0), zoom: 1, rotation: 0)
+        XCTAssertEqual(model.layers[0].rotation, 28 * .pi / 180, accuracy: 0.00001)
+        model.transformSelection(pan: .zero, zoom: 1, rotation: .pi / 180)
+        XCTAssertEqual(model.layers[0].rotation, .pi / 6, accuracy: 0.00001)
+        model.objectRotationSnapEnabled = false
+        model.transformSelection(pan: .zero, zoom: 1, rotation: .pi / 180)
+        XCTAssertEqual(model.layers[0].rotation, 31 * .pi / 180, accuracy: 0.00001)
+        model.endTransform()
+        model.addText("Second")
+        model.adjustSelection(rotation: 178 * .pi / 180)
+        model.objectRotationSnapEnabled = true
+        model.adjustSelection(rotation: .pi / 180)
+        XCTAssertEqual(model.layers[1].rotation, -.pi, accuracy: 0.00001)
+        XCTAssertEqual(model.layers[0].rotation, 31 * .pi / 180, accuracy: 0.00001)
+        model.undo()
+        XCTAssertEqual(model.layers[1].rotation, 178 * .pi / 180, accuracy: 0.00001)
+        model.redo()
+        model.adjustSelection(rotation: -5 * .pi / 180)
+        XCTAssertEqual(model.layers[1].rotation, 175 * .pi / 180, accuracy: 0.00001)
     }
 
     func testUndoBoundAndNewEditInvalidatesRedo() {
@@ -64,8 +271,10 @@ final class EditorTests: XCTestCase {
         let original = try model.renderNativeImage()
         model.gridEnabled = true
         model.snapEnabled = true
+        model.viewportRotationSnapEnabled = true
         model.viewport.apply(pan: CGPoint(x: 40, y: -30), zoom: 2.4, rotation: 0.8,
-                             focus: CGPoint(x: 100, y: 150), size: CGSize(width: 393, height: 400))
+                             focus: CGPoint(x: 100, y: 150), size: CGSize(width: 393, height: 400),
+                             rotationSnapEnabled: model.viewportRotationSnapEnabled)
         model.deselect()
         XCTAssertEqual(try model.renderNativeImage(), original)
         model.resetViewport()

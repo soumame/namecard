@@ -64,6 +64,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlin.math.min
@@ -79,7 +80,7 @@ internal fun EditorScreen(
     state: EditorScreenState,
     canvasState: EditorCanvasState,
     onFormatSelected: (Int) -> Unit,
-    onAddText: (String) -> Unit,
+    onAddText: (String, EditorTextStyle) -> Unit,
     onPickImage: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
@@ -102,6 +103,7 @@ internal fun EditorScreen(
     var showUrlDialog by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
     var textInput by remember { mutableStateOf("") }
+    var textStyle by remember { mutableStateOf(EditorTextStyle()) }
     var cardName by remember { mutableStateOf("") }
     var urlInput by remember { mutableStateOf("") }
     val viewportState = remember { EditorViewportState() }
@@ -330,7 +332,10 @@ internal fun EditorScreen(
                         label = "テキスト",
                         iconRes = R.drawable.ic_text_fields,
                         enabled = state.controlsEnabled,
-                        onClick = { showTextDialog = true },
+                        onClick = {
+                            textStyle = EditorTextStyle()
+                            showTextDialog = true
+                        },
                     )
                     EditorToolButton(
                         label = "URL",
@@ -377,6 +382,20 @@ internal fun EditorScreen(
                         onClick = canvasState::toggleSnap,
                     )
                     EditorToolButton(
+                        label = "要素回転スナップ",
+                        iconRes = R.drawable.ic_sync,
+                        enabled = state.controlsEnabled,
+                        selected = canvasState.objectRotationSnapEnabled,
+                        onClick = canvasState::toggleObjectRotationSnap,
+                    )
+                    EditorToolButton(
+                        label = "表示回転スナップ",
+                        iconRes = R.drawable.ic_sync,
+                        enabled = state.controlsEnabled,
+                        selected = viewportState.rotationSnapEnabled,
+                        onClick = viewportState::toggleRotationSnap,
+                    )
+                    EditorToolButton(
                         label = "全消去",
                         iconRes = R.drawable.ic_delete,
                         enabled = state.controlsEnabled,
@@ -420,32 +439,17 @@ internal fun EditorScreen(
     }
 
     if (showTextDialog) {
-        AlertDialog(
-            onDismissRequest = { showTextDialog = false },
-            title = { Text("テキストを追加") },
-            text = {
-                OutlinedTextField(
-                    value = textInput,
-                    onValueChange = { textInput = it },
-                    label = { Text("テキスト") },
-                    singleLine = true,
-                )
+        EditorTextDialog(
+            value = textInput,
+            style = textStyle,
+            onValueChange = { textInput = it },
+            onStyleChange = { textStyle = it },
+            onAdd = {
+                onAddText(textInput, textStyle)
+                textInput = ""
+                showTextDialog = false
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onAddText(textInput)
-                        textInput = ""
-                        showTextDialog = false
-                    },
-                    enabled = textInput.isNotBlank(),
-                ) {
-                    Text("追加")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTextDialog = false }) { Text("キャンセル") }
-            },
+            onDismiss = { showTextDialog = false },
         )
     }
 
@@ -599,6 +603,7 @@ private fun EditorCanvas(
                     val transformsObject = downOnPaper && state.hasSelection
                     val transformsPaper = !downOnPaper
                     if (transformsObject) state.beginTransform()
+                    if (transformsPaper) viewportState.beginTransform()
                     try {
                         while (true) {
                             val event = awaitPointerEvent()
@@ -637,6 +642,7 @@ private fun EditorCanvas(
                         }
                     } finally {
                         if (transformsObject) state.endTransform()
+                        if (transformsPaper) viewportState.endTransform()
                     }
                 }
             },
@@ -708,7 +714,7 @@ private fun EditorToolButton(
     iconRes: Int,
     enabled: Boolean,
     onClick: () -> Unit,
-    selected: Boolean = false,
+    selected: Boolean? = null,
 ) {
 
         Column(
@@ -725,10 +731,13 @@ private fun EditorToolButton(
             FilledTonalButton(
                 onClick = onClick,
                 enabled = enabled,
-                modifier = Modifier.size(width = 76.dp, height = 50.dp),
+                modifier = Modifier.size(width = 76.dp, height = 50.dp).semantics {
+                    contentDescription = label
+                    selected?.let { stateDescription = if (it) "オン" else "オフ" }
+                },
                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = if (selected) {
+                colors = if (selected == true) {
                     ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -771,7 +780,7 @@ private fun EditorScreenPreview() {
                 ),
                 canvasState = canvasState,
                 onFormatSelected = {},
-                onAddText = {},
+                onAddText = { _, _ -> },
                 onPickImage = {},
                 onUndo = canvasState::undo,
                 onRedo = canvasState::redo,

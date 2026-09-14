@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import UIKit
+import CoreText
 import NamecardCore
 
 enum EditorError: LocalizedError {
@@ -15,6 +16,63 @@ enum EditorError: LocalizedError {
     }
 }
 
+struct EditorTextStyle: Equatable {
+    var fontFamily: String?
+    var bold = true
+    var italic = false
+    var underline = false
+
+    @MainActor static let availableFontFamilies = UIFont.familyNames.sorted {
+        $0.localizedStandardCompare($1) == .orderedAscending
+    }
+
+    @MainActor private static var fontCache: [FontKey: UIFont] = [:]
+    private struct FontKey: Hashable {
+        let family: String?
+        let bold: Bool
+    }
+
+    @MainActor func font(at size: CGFloat) -> UIFont {
+        let key = FontKey(family: fontFamily, bold: bold)
+        if let cached = Self.fontCache[key] { return cached.withSize(size) }
+        let system = UIFont.systemFont(ofSize: 24, weight: bold ? .bold : .regular)
+        let faces = fontFamily.map { family in
+            UIFont.fontNames(forFamilyName: family).sorted().compactMap { UIFont(name: $0, size: 24) }
+        } ?? []
+        func mismatch(_ font: UIFont) -> CGFloat {
+            let traits = font.fontDescriptor.symbolicTraits
+            let values = font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any]
+            let weight = (values?[.weight] as? NSNumber)?.doubleValue ?? 0
+            let width = (values?[.width] as? NSNumber)?.doubleValue ?? 0
+            let targetWeight = bold ? UIFont.Weight.bold.rawValue : UIFont.Weight.regular.rawValue
+            return (traits.contains(.traitBold) == bold ? 0 : 20)
+                + (traits.contains(.traitItalic) ? 10 : 0)
+                + abs(CGFloat(weight) - targetWeight) + abs(CGFloat(width))
+        }
+        let base = faces.min { mismatch($0) < mismatch($1) } ?? system
+        var traits = base.fontDescriptor.symbolicTraits.subtracting([.traitBold, .traitItalic])
+        if bold { traits.insert(.traitBold) }
+        let resolved = base.fontDescriptor.withSymbolicTraits(traits)
+            .map { UIFont(descriptor: $0, size: 24) } ?? base
+        Self.fontCache[key] = resolved
+        return resolved.withSize(size)
+    }
+
+    /// Shared by the input preview, hit bounds, canvas and BIN renderer.
+    @MainActor func attributes(at size: CGFloat) -> [NSAttributedString.Key: Any] {
+        let font = font(at: size)
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font, .foregroundColor: UIColor.black,
+            .underlineStyle: underline ? NSUnderlineStyle.single.rawValue : 0
+        ]
+        // Keep the selected family when it has no bold face.
+        if bold && !font.fontDescriptor.symbolicTraits.contains(.traitBold) { attributes[.strokeWidth] = -3.0 }
+        // A uniform skew also styles Japanese glyphs supplied by an upright fallback font.
+        if italic { attributes[.obliqueness] = 0.2 }
+        return attributes
+    }
+}
+
 struct EditorLayer: Identifiable {
     enum Content { case text(String), image(UIImage) }
 
@@ -23,20 +81,49 @@ struct EditorLayer: Identifiable {
     var center = CGPoint(x: 148, y: 64)
     var size: CGSize
     var fontSize: CGFloat = 24
+    var textStyle = EditorTextStyle()
     var rotation: CGFloat = 0
     var pixelated = false
 
-    @MainActor var bounds: CGRect {
+    @MainActor var textDrawingBounds: CGRect {
         let measured: CGSize
         switch content {
         case .text(let text):
-            measured = (text as NSString).size(withAttributes: [
-                .font: UIFont.systemFont(ofSize: fontSize, weight: .bold)
-            ])
+            // Match the renderer's line layout, including leading from the selected and fallback fonts.
+            measured = (text as NSString).boundingRect(
+                with: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: textStyle.attributes(at: fontSize), context: nil
+            ).size
         case .image: measured = size
         }
         return CGRect(x: center.x - measured.width / 2, y: center.y - measured.height / 2,
                       width: measured.width, height: measured.height)
+    }
+
+    @MainActor var bounds: CGRect {
+        let drawingBounds = textDrawingBounds
+        guard case .text(let text) = content else { return drawingBounds }
+        let attributes = textStyle.attributes(at: fontSize)
+        let ink = (text as NSString).boundingRect(
+            with: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading, .usesDeviceMetrics],
+            attributes: attributes, context: nil
+        )
+        // Device metrics include real glyph overhang, but omit synthesized skew and outline width.
+        let skew = CGFloat(attributes[.obliqueness] as? Double ?? 0)
+        let stroke = abs(CGFloat(attributes[.strokeWidth] as? Double ?? 0)) * fontSize / 200
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes))
+        let leading = (CTLineGetGlyphRuns(line) as! [CTRun]).map { run -> CGFloat in
+            let runAttributes = CTRunGetAttributes(run) as NSDictionary
+            guard let font = runAttributes[kCTFontAttributeName] else { return 0 }
+            return CTFontGetLeading(font as! CTFont)
+        }.max() ?? 0
+        let horizontal = max(0, -ink.minX, ink.maxX - drawingBounds.width) + abs(skew) * drawingBounds.height + stroke
+        // Fallback glyphs and underlines can use half-leading beyond the reported image glyph bounds.
+        let vertical = max(0, -ink.minY, ink.maxY - drawingBounds.height, leading / 2) + stroke
+        // Keep selection centered on the layer so rotation and edge snapping use the same geometry.
+        return drawingBounds.insetBy(dx: -horizontal, dy: -vertical)
     }
 
     @MainActor func contains(_ point: CGPoint) -> Bool {
@@ -60,10 +147,20 @@ struct EditorLayer: Identifiable {
     }
 }
 
+enum EditorRotationSnap {
+    static func snapped(_ angle: CGFloat) -> CGFloat {
+        let step = CGFloat.pi / 12
+        let nearest = (angle / step).rounded() * step
+        return abs((nearest - angle).normalizedAngle) <= 4 * .pi / 180 + 0.0000001
+            ? nearest.normalizedAngle : angle.normalizedAngle
+    }
+}
+
 struct EditorViewport {
     var scale: CGFloat = 1
     var offset: CGPoint = .zero
     var rotation: CGFloat = 0
+    private var rawRotation: CGFloat?
 
     var isDefault: Bool {
         abs(scale - 1) < 0.001 && abs(offset.x) < 0.5 && abs(offset.y) < 0.5 && abs(rotation) < 0.001
@@ -76,16 +173,27 @@ struct EditorViewport {
             .translatedBy(x: -148, y: -64)
     }
 
-    mutating func apply(pan: CGPoint, zoom: CGFloat, rotation delta: CGFloat, focus: CGPoint, size: CGSize) {
+    mutating func beginTransform() { rawRotation = rotation }
+    mutating func endTransform() { rawRotation = nil }
+
+    mutating func apply(pan: CGPoint, zoom: CGFloat, rotation delta: CGFloat, focus: CGPoint, size: CGSize,
+                        rotationSnapEnabled: Bool = false) {
         guard zoom.isFinite, zoom > 0, delta.isFinite else { return }
+        var nextRotation = rotation
+        if delta != 0 {
+            let raw = ((rawRotation ?? rotation) + delta).normalizedAngle
+            rawRotation = raw
+            nextRotation = rotationSnapEnabled ? EditorRotationSnap.snapped(raw) : raw
+        }
+        let appliedRotation = (nextRotation - rotation).normalizedAngle
         let next = (scale * zoom).clamped(to: 0.5...5)
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let relative = CGPoint(x: center.x + offset.x - focus.x, y: center.y + offset.y - focus.y)
-            .rotated(delta)
+            .rotated(appliedRotation)
         offset = CGPoint(x: focus.x + relative.x * next / scale + pan.x - center.x,
                          y: focus.y + relative.y * next / scale + pan.y - center.y)
         scale = next
-        rotation = (rotation + delta).normalizedAngle
+        rotation = nextRotation
     }
 }
 
@@ -100,6 +208,8 @@ final class EditorModel {
     private(set) var revision = 0
     var gridEnabled = false { didSet { changed() } }
     var snapEnabled = false { didSet { snapGuideX = nil; snapGuideY = nil; changed() } }
+    var objectRotationSnapEnabled = false { didSet { rawRotation = nil; changed() } }
+    var viewportRotationSnapEnabled = false { didSet { viewport.endTransform(); changed() } }
     var viewport = EditorViewport() { didSet { changed() } }
     private(set) var snapGuideX: CGFloat?
     private(set) var snapGuideY: CGFloat?
@@ -108,6 +218,7 @@ final class EditorModel {
     @ObservationIgnored private var redoStack: [Snapshot] = []
     @ObservationIgnored private var transformStart: Snapshot?
     @ObservationIgnored private var rawCenter: CGPoint?
+    @ObservationIgnored private var rawRotation: CGFloat?
     @ObservationIgnored private var transformRecorded = false
 
     var hasSelection: Bool { selectedIndex != nil }
@@ -116,13 +227,13 @@ final class EditorModel {
     var canMoveBackward: Bool { selectedIndex.map { $0 > 0 } ?? false }
     private var selectedIndex: Int? { layers.firstIndex { $0.id == selection } }
 
-    func addText(_ value: String) {
+    func addText(_ value: String, style: EditorTextStyle = EditorTextStyle()) {
         let trace = PerformanceTrace.begin("Editor.addText")
         defer { PerformanceTrace.end(trace) }
         let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         recordChange()
-        let layer = EditorLayer(id: UUID(), content: .text(text), size: .zero)
+        let layer = EditorLayer(id: UUID(), content: .text(text), size: .zero, textStyle: style)
         layers.append(layer)
         selection = layer.id
         changed()
@@ -182,6 +293,7 @@ final class EditorModel {
         transformStart = snapshot()
         transformRecorded = false
         rawCenter = layers[index].center
+        rawRotation = layers[index].rotation
         snapGuideX = nil
         snapGuideY = nil
     }
@@ -189,7 +301,7 @@ final class EditorModel {
     func transformSelection(pan: CGPoint, zoom: CGFloat, rotation: CGFloat) {
         guard let index = selectedIndex, pan.x.isFinite, pan.y.isFinite,
               zoom.isFinite, zoom > 0, rotation.isFinite else { return }
-        guard pan != .zero || abs(zoom - 1) > 0.001 || abs(rotation) > 0.0001 else { return }
+        guard pan != .zero || abs(zoom - 1) > 0.001 || rotation != 0 else { return }
         if !transformRecorded {
             pushUndo(transformStart ?? snapshot())
             transformRecorded = true
@@ -199,7 +311,11 @@ final class EditorModel {
                           y: (previous.y + pan.y).clamped(to: 0...128))
         rawCenter = raw
         layers[index].resize(zoom)
-        layers[index].rotation = (layers[index].rotation + rotation).normalizedAngle
+        if rotation != 0 {
+            let angle = ((rawRotation ?? layers[index].rotation) + rotation).normalizedAngle
+            rawRotation = angle
+            layers[index].rotation = objectRotationSnapEnabled ? EditorRotationSnap.snapped(angle) : angle
+        }
         layers[index].center = snapEnabled ? snapped(raw, index: index) : raw
         changed()
     }
@@ -208,6 +324,7 @@ final class EditorModel {
         transformStart = nil
         transformRecorded = false
         rawCenter = nil
+        rawRotation = nil
         snapGuideX = nil
         snapGuideY = nil
         changed()
@@ -319,10 +436,10 @@ final class EditorModel {
                 }
                 image.draw(in: layer.bounds)
             case .text(let value):
-                (value as NSString).draw(in: layer.bounds, withAttributes: [
-                    .font: UIFont.systemFont(ofSize: layer.fontSize, weight: .bold),
-                    .foregroundColor: UIColor.black
-                ])
+                (value as NSString).draw(
+                    with: layer.textDrawingBounds, options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    attributes: layer.textStyle.attributes(at: layer.fontSize), context: nil
+                )
             }
             context.restoreGState()
         }

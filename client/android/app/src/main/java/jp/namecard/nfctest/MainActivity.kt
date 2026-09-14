@@ -202,8 +202,8 @@ class MainActivity : ComponentActivity() {
         log("10種類の連続書き換えを選択。完了まで同じ位置に固定してください。\n")
     }
 
-    private fun addEditorText(text: String) {
-        editor.addText(text)
+    private fun addEditorText(text: String, style: EditorTextStyle) {
+        editor.addText(text, style)
         screenState = screenState.copy(editorMessage = "テキストを追加しました。直接操作できます。")
     }
 

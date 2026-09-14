@@ -2,6 +2,7 @@ package jp.namecard.nfctest
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import kotlin.math.abs
@@ -22,6 +23,24 @@ internal class EditorViewportState {
     var rotationDegrees by mutableFloatStateOf(0f)
         private set
 
+    var rotationSnapEnabled by mutableStateOf(false)
+        private set
+
+    private var rawRotationDegrees = 0f
+
+    fun toggleRotationSnap() {
+        rotationSnapEnabled = !rotationSnapEnabled
+        rawRotationDegrees = rotationDegrees
+    }
+
+    fun beginTransform() {
+        rawRotationDegrees = rotationDegrees
+    }
+
+    fun endTransform() {
+        rawRotationDegrees = rotationDegrees
+    }
+
     val isDefault: Boolean
         get() = abs(scale - 1f) < 0.001f &&
             abs(offsetX) < 0.5f &&
@@ -41,6 +60,15 @@ internal class EditorViewportState {
         if (viewportWidth <= 0f || viewportHeight <= 0f) return
         val safeZoom = zoomFactor.takeIf { it.isFinite() && it > 0f } ?: 1f
         val safeRotation = rotationDeltaDegrees.takeIf(Float::isFinite) ?: 0f
+        rawRotationDegrees = normalizeEditorRotationDegrees(rawRotationDegrees + safeRotation)
+        val nextRotation = if (safeRotation == 0f) {
+            rotationDegrees
+        } else if (rotationSnapEnabled) {
+            snapEditorRotationDegrees(rawRotationDegrees)
+        } else {
+            rawRotationDegrees
+        }
+        val appliedRotation = normalizeEditorRotationDegrees(nextRotation - rotationDegrees)
         val previousScale = scale
         val nextScale = (previousScale * safeZoom).coerceIn(MIN_SCALE, MAX_SCALE)
         val appliedZoom = nextScale / previousScale
@@ -55,13 +83,13 @@ internal class EditorViewportState {
         val transformedCenter = rotateVector(
             x = paperCenterX - focus.x,
             y = paperCenterY - focus.y,
-            degrees = safeRotation,
+            degrees = appliedRotation,
         ) * appliedZoom
 
         offsetX = focus.x + transformedCenter.x + panX - viewportCenterX
         offsetY = focus.y + transformedCenter.y + panY - viewportCenterY
         scale = nextScale
-        rotationDegrees = normalizeDegrees(rotationDegrees + safeRotation)
+        rotationDegrees = nextRotation
     }
 
     fun screenToPaper(
@@ -116,6 +144,7 @@ internal class EditorViewportState {
         offsetX = 0f
         offsetY = 0f
         rotationDegrees = 0f
+        rawRotationDegrees = 0f
     }
 
     private fun basePaperScale(viewportWidth: Float, viewportHeight: Float): Float = min(
@@ -132,8 +161,6 @@ internal class EditorViewportState {
             y = x * sine + y * cosine,
         )
     }
-
-    private fun normalizeDegrees(value: Float): Float = ((value + 180f) % 360f + 360f) % 360f - 180f
 
     companion object {
         private const val MIN_SCALE = 0.5f

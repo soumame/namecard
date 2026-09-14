@@ -19,6 +19,7 @@ Vendored under `Drivers/`:
 
 - STM32G0xx HAL Driver v1.4.7
 - CMSIS Device G0 v1.4.5
-- CMSIS Core 5.6.0
+- CMSIS Core(M) headers: `__CM_CMSIS_VERSION_MAIN=5`, `__CM_CMSIS_VERSION_SUB=3`
+  in `Drivers/CMSIS/Core/Include/cmsis_version.h` (the header file revision is V5.0.3).
 
 Each vendor subtree contains its upstream license. Application code in `Core/` is project code.

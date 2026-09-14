@@ -14,6 +14,7 @@ struct EditorView: View {
     @State private var photo: PhotosPickerItem?
     @State private var importingImage = false
     @State private var addingText = false
+    @State private var textStyle = EditorTextStyle()
     @State private var settingURL = false
     @State private var creatingQRCode = false
     @State private var confirmingClear = false
@@ -120,7 +121,7 @@ struct EditorView: View {
         .sheet(isPresented: $addingText) {
             TextEntrySheet(title: "テキストを追加", prompt: "テキスト", confirmationTitle: "追加",
                            fieldIdentifier: "editor.text", confirmationIdentifier: "editor.confirmText",
-                           onConfirm: model.addText)
+                           textStyle: $textStyle, onConfirm: { model.addText($0, style: textStyle) })
         }
         .sheet(isPresented: $settingURL, onDismiss: {
             guard let url = confirmedURL else { return }
@@ -198,7 +199,7 @@ struct EditorView: View {
                     }
                     .disabled(loadingImage)
                     Button { importingImage = true } label: { toolLabel("ファイル", symbol: "folder") }
-                    Button { addingText = true } label: { toolLabel("テキスト", symbol: "textformat") }
+                    Button { textStyle = EditorTextStyle(); addingText = true } label: { toolLabel("テキスト", symbol: "textformat") }
                         .accessibilityIdentifier("editor.addText")
                     Button { settingURL = true } label: { toolLabel("URL", symbol: "link") }
                         .accessibilityIdentifier("editor.setURL")
@@ -225,6 +226,19 @@ struct EditorView: View {
                         .accessibilityValue(model.gridEnabled ? "オン" : "オフ")
                     Button { model.snapEnabled.toggle() } label: { toolLabel("スナップ", symbol: "scope", selected: model.snapEnabled) }
                         .accessibilityValue(model.snapEnabled ? "オン" : "オフ")
+                        .accessibilityIdentifier("editor.positionSnap")
+                    Button { model.objectRotationSnapEnabled.toggle() } label: {
+                        toolLabel("要素回転スナップ", symbol: "rotate.right", selected: model.objectRotationSnapEnabled)
+                    }
+                        .accessibilityValue(model.objectRotationSnapEnabled ? "オン" : "オフ")
+                        .accessibilityHint("画像とテキストの回転を15度ごとの角度に揃えます")
+                        .accessibilityIdentifier("editor.objectRotationSnap")
+                    Button { model.viewportRotationSnapEnabled.toggle() } label: {
+                        toolLabel("表示回転スナップ", symbol: "rotate.3d", selected: model.viewportRotationSnapEnabled)
+                    }
+                        .accessibilityValue(model.viewportRotationSnapEnabled ? "オン" : "オフ")
+                        .accessibilityHint("紙面表示の回転を15度ごとに合わせます")
+                        .accessibilityIdentifier("editor.viewportRotationSnap")
                     Button { confirmingClear = true } label: { toolLabel("全消去", symbol: "trash.slash") }
                         .disabled(!model.hasContent)
                 }

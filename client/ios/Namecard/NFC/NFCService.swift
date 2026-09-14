@@ -37,6 +37,7 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
     @ObservationIgnored private var sessionEndReason: String?
     @ObservationIgnored private var issueRecorded = false
     @ObservationIgnored private var rediscovery = TransferRediscovery()
+    @ObservationIgnored private var urlRediscovery = URLRediscovery()
     @ObservationIgnored private var sessionTiming = NFCSessionTiming()
     @ObservationIgnored private var alertRateLimit = NFCAlertRateLimit()
     @ObservationIgnored private var progressUpdatedAt: TimeInterval = -.infinity
@@ -158,6 +159,7 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
         generation = UUID()
         deadline = ProcessInfo.processInfo.systemUptime + 60
         rediscovery = TransferRediscovery()
+        urlRediscovery = URLRediscovery()
         alertRateLimit = NFCAlertRateLimit()
         progressUpdatedAt = -.infinity
         lastProgressPhase = nil
@@ -243,7 +245,7 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
             session.restartPolling()
             return
         }
-        if let expected = rediscovery.uid, expected != tag.identifier {
+        if (rediscovery.uid != nil && rediscovery.uid != tag.identifier) || !urlRediscovery.accepts(tag.identifier) {
             let reason = "別の名刺を検出しました。前回と同じ名刺で再開してください。"
             finishMessage(reason)
             session.invalidate(errorMessage: reason)
@@ -319,6 +321,7 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
                     try await URLWriter.write(url, mailbox: mailbox, store: journalStore) { [weak self] text in
                         Task { @MainActor in
                             guard let self, self.isCurrent(token: token), self.acceptsProgress else { return }
+                            self.appendLog("URL: \(text)")
                             self.setMessage(text)
                         }
                     }
@@ -371,6 +374,21 @@ final class NFCService: NSObject, @preconcurrency NFCTagReaderSessionDelegate {
                     // Old Core NFC tag objects become invalid after restartPolling.
                     // End this task and obtain a new tag through didDetect; the
                     // original 60-second deadline and UID-bound job stay intact.
+                    generation = UUID()
+                    activeTask = nil
+                    session.restartPolling()
+                    return
+                }
+                if case .url = selected,
+                   case MailboxTransportError.connectionLost = error,
+                   urlRediscovery.reserve(uid: tag.identifier, now: ProcessInfo.processInfo.systemUptime, deadline: deadline) {
+                    acceptsProgress = true
+                    sessionEndReason = nil
+                    setMessage("URLの接続を取り直しています（\(urlRediscovery.attempts)/\(URLRediscovery.maximumAttempts)）。同じ名刺の位置を保ってください。")
+                    appendLog("URL: 同じUIDを再検出し、保存した復旧記録から再開します。")
+                    do { try await Task.sleep(for: .milliseconds(500)) }
+                    catch { return }
+                    guard isCurrent(session, token: token), !Task.isCancelled else { return }
                     generation = UUID()
                     activeTask = nil
                     session.restartPolling()
