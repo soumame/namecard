@@ -257,6 +257,21 @@ NewまたはLibraryから書込を開始した後は生成済みBINをRAMに保�
 存在確認間隔を更新中のために120秒としているので、新しい操作は自発的なタグ除去検出を待たずに開始する。
 再初期化の前後にForeground Dispatchも登録し直し、通常NFC通知が届いた場合はアプリで消費する。
 その通知の古いタグを直接転送へ使わず、Reader Modeから取得したタグだけを使用する。
+通知先は非公開の`NfcDispatchReceiver`とし、Activityを起動したり探索を再初期化したりしない。
+Activity宛ての通知は`onPause`→`onNewIntent`→`onResume`を発生させ、転送キャンセルと
+Reader Modeの再起動を誘発するため使用しない。
+
+2026-09-22、同一Pixel 9 Pro・同一FWで9月5日版は成功、9月8日版は`FW error=18`になると
+ユーザーから報告された。基板を2枚使った比較でも新しいアプリで再現している。
+端末ログでは9月8日版のNDEF通知とReader Modeの短時間のOFF/ON反復を確認した。
+この通知経路をBroadcastへ変更し、エラー画面には失敗した段階とACKのstate/VDD/min/seq/offsetも
+表示する。通信ログはLogcatの`NamecardNfc`タグからも取得できる。
+最初のFWエラーの原因までログだけで確定したわけではなく、修正後の実基板での
+書き換え成功は別途確認する。`NfcDispatchTest`は旧Activity通知でのpauseと、Broadcast通知で
+pauseが起きないことをAndroid上で比較する。
+修正後はJVM単体テスト49件、Lint（エラー0、既存警告8）、Debug APKビルドが成功し、
+Android 16のPixel 9 Pro AVDでこの通知比較テスト2件が成功した。
+これはAndroidのライフサイクル確認であり、実機のRF給電・表示更新の成功確認ではない。
 
 2026-09-08の連続書き込み修正では、JVM単体テスト37件、Lint（エラー0、既存警告8）、Debug APKビルドが成功した。
 正常終了後の3回連続開始、操作選択前の検出、処理中の再初期化の延期、画像→URL→画像の設定切替を模擬した。

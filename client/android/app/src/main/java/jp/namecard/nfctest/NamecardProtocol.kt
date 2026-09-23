@@ -413,7 +413,9 @@ internal data class Ack(
 
     fun requireSuccess() {
         check(code != 0x80 && error == 0) {
-            "FW error=$error (${errorName(error)})"
+            "FW error=$error (${errorName(error)}); " +
+                "state=$state VDD=${vddMv}mV min=${minimumVddMv}mV " +
+                "seq=$expectedSequence offset=$expectedOffset"
         }
     }
 

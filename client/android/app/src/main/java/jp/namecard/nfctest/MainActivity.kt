@@ -3,8 +3,6 @@ package jp.namecard.nfctest
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
-import android.app.PendingIntent
-import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.NdefMessage
 import android.nfc.NdefRecord
@@ -20,6 +18,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -465,23 +464,10 @@ class MainActivity : ComponentActivity() {
 
     private fun registerForegroundNfcDispatch() {
         if (!nfcForeground) return
-        // Reader Mode resets briefly restore ordinary dispatch. Keep that
-        // dispatch in this foreground activity so the card's URL cannot open
-        // another app during the 300 ms reset window.
-        val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or
-            if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
-        adapter?.enableForegroundDispatch(this, PendingIntent.getActivity(this, 0, intent, flags), null, null)
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        if (intent.hasExtra(NfcAdapter.EXTRA_TAG)) {
-            // Consume the normal-dispatch fallback without opening its URL or
-            // reusing a Tag discovered with different Reader Mode parameters.
-            log("通常NFC通知をアプリで受信しました。URLは開かず、NFC-V探索へ戻ります。\n")
-            refreshReaderMode()
-        }
+        // A PendingIntent targeting this Activity triggers onPause/onResume,
+        // cancelling the transfer and resetting Reader Mode again. Consume
+        // fallback notifications without changing the Activity lifecycle.
+        adapter?.enableForegroundDispatch(this, NfcDispatchReceiver.pendingIntent(this), null, null)
     }
 
     override fun onPause() {
@@ -1219,7 +1205,7 @@ class MainActivity : ComponentActivity() {
             if (mode == MODE_IMAGE) {
                 interruptWriteProgress(
                     status = "書き込みを完了できませんでした",
-                    detail = "${error.message ?: "進捗は保持されています"}。位置を合わせて再タッチしてください。",
+                    detail = "$stage: ${error.message ?: "進捗は保持されています"}。位置を合わせて再タッチしてください。",
                 )
             } else if (mode == MODE_URL) {
                 pendingMode = MODE_NONE
@@ -1604,6 +1590,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun log(message: String) {
+        Log.d("NamecardNfc", message.trimEnd())
         ui.post {
             screenState = screenState.copy(statusText = screenState.statusText + message)
         }
