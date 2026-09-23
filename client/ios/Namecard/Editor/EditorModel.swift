@@ -114,14 +114,19 @@ struct EditorLayer: Identifiable {
         let skew = CGFloat(attributes[.obliqueness] as? Double ?? 0)
         let stroke = abs(CGFloat(attributes[.strokeWidth] as? Double ?? 0)) * fontSize / 200
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes))
+        let glyphBounds = CTLineGetBoundsWithOptions(line, [.useGlyphPathBounds])
+        let font = textStyle.font(at: fontSize)
         let leading = (CTLineGetGlyphRuns(line) as! [CTRun]).map { run -> CGFloat in
             let runAttributes = CTRunGetAttributes(run) as NSDictionary
             guard let font = runAttributes[kCTFontAttributeName] else { return 0 }
             return CTFontGetLeading(font as! CTFont)
         }.max() ?? 0
         let horizontal = max(0, -ink.minX, ink.maxX - drawingBounds.width) + abs(skew) * drawingBounds.height + stroke
+        // Device metrics normalize the ink origin. A fallback glyph can still extend above
+        // the selected font's baseline-relative ascent (e.g. Courier with PingFang CJK glyphs).
+        let glyphOverhang = max(0, glyphBounds.maxY - font.ascender, -glyphBounds.minY + font.descender)
         // Fallback glyphs and underlines can use half-leading beyond the reported image glyph bounds.
-        let vertical = max(0, -ink.minY, ink.maxY - drawingBounds.height, leading / 2) + stroke
+        let vertical = max(0, -ink.minY, ink.maxY - drawingBounds.height, leading / 2, glyphOverhang) + stroke
         // Keep selection centered on the layer so rotation and edge snapping use the same geometry.
         return drawingBounds.insetBy(dx: -horizontal, dy: -vertical)
     }

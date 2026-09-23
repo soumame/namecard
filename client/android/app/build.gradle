@@ -33,7 +33,7 @@ android {
         targetSdk = 35
         testInstrumentationRunner = "android.test.InstrumentationTestRunner"
         // Avoid the legacy runner scanning every Compose/app class during discovery.
-        testInstrumentationRunnerArguments = ["class": "jp.namecard.nfctest.EditorTextRenderingTest"]
+        testInstrumentationRunnerArguments = ["class": "jp.namecard.nfctest.EditorTextRenderingTest,jp.namecard.nfctest.NfcDispatchTest"]
         versionCode = (System.getenv("NAMECARD_VERSION_CODE") ?: "17").toInteger()
         versionName = System.getenv("NAMECARD_VERSION_NAME") ?: "0.17"
     }

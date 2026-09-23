@@ -295,9 +295,17 @@ final class NamecardUITests: XCTestCase {
         let paste = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label == 'ペースト' OR label == 'Paste'")).firstMatch
         XCTAssertTrue(paste.waitForExistence(timeout: 3))
-        paste.tap()
-        let entered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: field)
-        XCTAssertEqual(XCTWaiter.wait(for: [entered], timeout: 3), .completed)
+        for attempt in 0..<2 {
+            UIPasteboard.general.string = value
+            paste.tap()
+            let entered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: field)
+            if XCTWaiter.wait(for: [entered], timeout: 3) == .completed { return }
+            // iOS can leave the edit menu open after XCUITest reports a successful tap.
+            // Retry that missed tap once, only if nothing was entered and Paste is still available.
+            guard attempt == 0, field.value as? String == field.placeholderValue,
+                  paste.exists, paste.isHittable else { break }
+        }
+        XCTAssertEqual(field.value as? String, value, "Pasting must enter the exact requested text")
     }
 
 }

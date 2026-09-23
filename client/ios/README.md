@@ -28,6 +28,10 @@ xcodebuild -project client/ios/Namecard.xcodeproj -scheme Namecard \
 
 `python3 client/ios/tools/select_simulator.py`でインストール済みiPhoneのUDIDを取得し、
 `-destination 'platform=iOS Simulator,id=<UDID>' test`でアプリ単体試験とUI試験を実行します。
+文字の代替フォントは言語設定によって変わるため、CIのアプリ単体試験は
+`-testLanguage en -testRegion US`を指定します。文字の選択枠を変更した場合は、
+`-only-testing:NamecardTests/EditorTests`を英語設定と`-testLanguage ja -testRegion JP`の両方で確認してください。
+UI試験はテスト内でアプリを日本語設定で起動します。
 XcodeプロジェクトはPython標準ライブラリとmacOSの`plutil`を使う`tools/generate_project.py`から再生成でき、
 同期グループによってSwiftファイルが自動的にターゲットへ入ります。
 `--check`は書式やXML属性の順序ではなく設定内容を比較します。Team、署名方式・証明書指定・

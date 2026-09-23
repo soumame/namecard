@@ -2,6 +2,7 @@
     <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:name="android.hardware.nfc" android:required="true" />
     <application android:theme="@style/AppTheme" android:label="Namecard">
+        <receiver android:name=".NfcDispatchReceiver" android:exported="false" />
         <activity android:name=".MainActivity" android:screenOrientation="portrait"
                   android:exported="true">
             <intent-filter>
